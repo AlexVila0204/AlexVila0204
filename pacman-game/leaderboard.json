@@ -1,5 +1,13 @@
 {
-  "updated": null,
+  "updated": "2026-09-15T05:06:37.735Z",
   "maxScore": 14700,
-  "scores": []
+  "scores": [
+    {
+      "user": "AlexVila0204",
+      "score": 3830,
+      "commits": 127,
+      "date": "2026-09-15",
+      "issue": 1
+    }
+  ]
 }

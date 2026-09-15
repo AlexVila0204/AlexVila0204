@@ -70,7 +70,7 @@ Play, finish a run and hit **SUBMIT SCORE**: a bot verifies it and puts your Git
 <!-- PACMAN-LEADERBOARD:START -->
 | # | Player | Score | Date |
 | :-: | :-- | --: | :-: |
-| 🥇 | _an empty seat, waiting for you_ | — | — |
+| 🥇 | <img src="https://github.com/AlexVila0204.png?size=24" width="24" height="24" alt="" /> [@AlexVila0204](https://github.com/AlexVila0204) | **3,830** | 2026-09-15 |
 <!-- PACMAN-LEADERBOARD:END -->
 
 <picture>
