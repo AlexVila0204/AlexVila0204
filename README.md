@@ -65,7 +65,7 @@ I build mission-critical systems for the financial sector: payment terminals, el
 
 ### 🏆 Arcade Leaderboard
 
-Play, finish a run and hit **SUBMIT SCORE**: a bot verifies it and puts your GitHub avatar right here.
+Play, finish a run and hit **SUBMIT SCORE**. The issue carries your run replay; a bot re-simulates it with the game engine, and only scores it can reproduce land here with your GitHub avatar.
 
 <!-- PACMAN-LEADERBOARD:START -->
 | # | Player | Score | Date |

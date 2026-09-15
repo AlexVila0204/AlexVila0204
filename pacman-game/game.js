@@ -1,3 +1,46 @@
+// GitHub Retro Pac-Man Arcade Engine
+// Runs in the browser and, headless, inside the leaderboard GitHub Action
+// (see verify-replay.js) to re-simulate submitted runs.
+
+const hasDOM = typeof document !== 'undefined' && typeof window !== 'undefined';
+const $ = (id) => (hasDOM ? document.getElementById(id) : null);
+
+// Deterministic PRNG (mulberry32): a recorded run replays bit-for-bit
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Input log codec: "<frame delta base36><U|L|D|R>" per input, e.g. "3L1dU2R"
+const DIR_LETTERS = ['U', 'L', 'D', 'R']; // same order as DIRS below
+const encodeInputs = (log) => {
+  let prev = 0;
+  return log.map(([frame, code]) => {
+    const chunk = (frame - prev).toString(36) + DIR_LETTERS[code];
+    prev = frame;
+    return chunk;
+  }).join('');
+};
+const decodeInputs = (str) => {
+  const out = [];
+  const re = /([0-9a-z]+)([ULDR])/g;
+  let prev = 0;
+  let m;
+  while ((m = re.exec(str)) !== null) {
+    const delta = parseInt(m[1], 36);
+    if (!Number.isFinite(delta) || delta < 0) return null;
+    prev += delta;
+    out.push([prev, DIR_LETTERS.indexOf(m[2])]);
+  }
+  return out;
+};
+
 class RetroAudio {
   constructor() {
     this.ctx = null;
@@ -7,7 +50,7 @@ class RetroAudio {
 
   init() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const AudioCtx = hasDOM ? (window.AudioContext || window.webkitAudioContext) : null;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -111,7 +154,7 @@ const leaderboard = {
   },
 
   render() {
-    const list = document.getElementById('leaderboardList');
+    const list = $('leaderboardList');
     if (!list) return;
     if (this.entries.length === 0) {
       list.innerHTML = '<li class="lb-empty">No scores yet.<br />The first seat is yours.</li>';
@@ -126,21 +169,24 @@ const leaderboard = {
       </li>`).join('');
   },
 
-  submitUrl(score, commits, total) {
-    const title = `Pac-Man score: ${score}`;
-    const payload = JSON.stringify({ score, commits, total, v: 1 });
-    const body = [
+  // Issue body: human-readable summary + the replay the bot re-simulates
+  issueBody(payload) {
+    return [
       '🕹️ **GitHub Arcade Pac-Man — score submission**',
       '',
-      '| Score | Commits eaten |',
-      '| --: | :-: |',
-      `| **${score.toLocaleString('en-US')}** | ${commits} / ${total} |`,
+      '| Score | Commits eaten | Frames |',
+      '| --: | :-: | :-: |',
+      `| **${payload.score.toLocaleString('en-US')}** | ${payload.commits} / ${payload.total} | ${payload.frames} |`,
       '',
-      `<!-- pacman-score:${payload} -->`,
+      `<!-- pacman-score:${JSON.stringify(payload)} -->`,
       '',
-      '_Just press **Submit new issue**. The leaderboard bot verifies the score, adds your avatar to the ranking on the profile README and closes this issue automatically._'
+      '_Just press **Submit new issue**. The leaderboard bot replays this run frame by frame with the game engine, checks the score matches, adds your avatar to the ranking on the profile README and closes this issue automatically. Do not edit the hidden replay block._'
     ].join('\n');
-    return `https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=pacman-score`;
+  },
+
+  submitUrl(payload) {
+    const title = `Pac-Man score: ${payload.score}`;
+    return `https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(this.issueBody(payload))}&labels=pacman-score`;
   }
 };
 
@@ -230,15 +276,23 @@ const GHOST_DEFS = [
 ];
 
 class PacmanGame {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+  constructor(canvas, options = {}) {
+    this.headless = !!options.headless;
+    this.canvas = canvas || { width: 0, height: 0, getContext: () => null };
+    this.ctx = this.canvas.getContext('2d');
     this.canvas.width = COLS * TILE_SIZE;
     this.canvas.height = ROWS * TILE_SIZE;
 
+    // Replay recording: seeded RNG + every direction input tagged with its frame
+    this.seed = 0;
+    this.rng = mulberry32(0);
+    this.frame = 0;
+    this.inputLog = [];
+
     this.map = [];
     this.score = 0;
-    this.highScore = parseInt(localStorage.getItem('gh_pacman_highscore') || '0', 10) || 0;
+    this.highScore = 0;
+    try { this.highScore = parseInt(localStorage.getItem('gh_pacman_highscore') || '0', 10) || 0; } catch (e) {}
     this.commitsEaten = 0;
     this.totalCommits = 0;
     this.lives = 3;
@@ -289,8 +343,68 @@ class PacmanGame {
 
     this.initMap();
     this.resetPositions(true);
-    this.bindEvents();
+    if (!this.headless) this.bindEvents();
     this.updateHUD();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Replay recording / verification
+  // ---------------------------------------------------------------------------
+
+  beginRecording(seed) {
+    this.seed = (seed === undefined ? Math.floor(Math.random() * 4294967296) : Number(seed)) >>> 0;
+    this.rng = mulberry32(this.seed);
+    this.frame = 0;
+    this.inputLog = [];
+  }
+
+  recordInput(dx, dy) {
+    const code = DIRS.findIndex(d => d.dx === dx && d.dy === dy);
+    if (code === -1) return;
+    const last = this.inputLog[this.inputLog.length - 1];
+    if (last && last[0] === this.frame && last[1] === code) return;
+    this.inputLog.push([this.frame, code]);
+  }
+
+  replayPayload() {
+    return {
+      v: 2,
+      score: this.score,
+      commits: this.commitsEaten,
+      total: this.totalCommits,
+      seed: this.seed,
+      frames: this.frame,
+      inputs: encodeInputs(this.inputLog)
+    };
+  }
+
+  // Re-simulate a recorded run headlessly. Returns the outcome the engine
+  // produces for that seed + input log, which the bot compares to the claim.
+  static replay(payload, maxFrames = 60 * 60 * 30) {
+    const inputs = decodeInputs(String(payload.inputs || ''));
+    if (!inputs) return { ok: false, reason: 'unreadable input log' };
+    const frames = Number(payload.frames);
+    if (!Number.isInteger(frames) || frames <= 0 || frames > maxFrames) return { ok: false, reason: 'bad frame count' };
+
+    const game = new PacmanGame(null, { headless: true });
+    game.startGame(Number(payload.seed) >>> 0);
+    let i = 0;
+    while (game.frame < frames && (game.state === 'PLAYING' || game.state === 'DYING')) {
+      while (i < inputs.length && inputs[i][0] <= game.frame) {
+        const d = DIRS[inputs[i][1]];
+        game.setDirection(d.dx, d.dy);
+        i++;
+      }
+      game.update();
+    }
+    return {
+      ok: true,
+      score: game.score,
+      commits: game.commitsEaten,
+      total: game.totalCommits,
+      frames: game.frame,
+      state: game.state
+    };
   }
 
   initMap() {
@@ -412,6 +526,7 @@ class PacmanGame {
       this.startGame();
     }
     if (this.state !== 'PLAYING') return;
+    this.recordInput(dx, dy);
 
     const p = this.pacman;
     // Instant reverse, no need to be aligned
@@ -423,18 +538,19 @@ class PacmanGame {
     p.nextDirY = dy;
   }
 
-  startGame() {
+  startGame(seed) {
+    this.beginRecording(seed);
     this.state = 'PLAYING';
     this.readyTimer = 90;
-    const startOverlay = document.getElementById('startOverlay');
+    const startOverlay = $('startOverlay');
     if (startOverlay) startOverlay.classList.add('hidden');
-    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const gameOverOverlay = $('gameOverOverlay');
     if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     audio.playStart();
   }
 
   togglePause() {
-    const pauseLabel = document.getElementById('pauseLabel');
+    const pauseLabel = $('pauseLabel');
     if (this.state === 'PLAYING') {
       this.state = 'PAUSED';
       if (pauseLabel) pauseLabel.textContent = 'Resume';
@@ -731,7 +847,7 @@ class PacmanGame {
 
     let pick = options[0];
     if (ghost.state === 'frightened') {
-      pick = options[Math.floor(Math.random() * options.length)];
+      pick = options[Math.floor(this.rng() * options.length)];
     } else {
       const target = this.ghostTarget(ghost);
       let best = Infinity;
@@ -863,6 +979,8 @@ class PacmanGame {
   // ---------------------------------------------------------------------------
 
   update() {
+    if (this.state === 'PLAYING' || this.state === 'DYING') this.frame++;
+
     if (this.state === 'DYING') {
       this.deathTimer--;
       if (this.deathTimer <= 0) {
@@ -918,21 +1036,21 @@ class PacmanGame {
     this.score += pts;
     if (this.score > this.highScore) {
       this.highScore = this.score;
-      localStorage.setItem('gh_pacman_highscore', this.highScore);
+      try { localStorage.setItem('gh_pacman_highscore', this.highScore); } catch (e) {}
     }
   }
 
   updateHUD() {
-    const s1 = document.getElementById('score1Up');
+    const s1 = $('score1Up');
     if (s1) s1.textContent = this.score.toString().padStart(5, '0');
 
-    const sh = document.getElementById('scoreHigh');
+    const sh = $('scoreHigh');
     if (sh) sh.textContent = this.highScore.toString().padStart(5, '0');
 
-    const sc = document.getElementById('scoreCommits');
+    const sc = $('scoreCommits');
     if (sc) sc.textContent = `${this.commitsEaten}/${this.totalCommits}`;
 
-    const livesContainer = document.getElementById('livesDisplay');
+    const livesContainer = $('livesDisplay');
     if (livesContainer) {
       livesContainer.innerHTML = Array.from({ length: Math.max(0, this.lives) })
         .map(() => '<svg class="life-icon" viewBox="0 0 20 20" width="15" height="15"><path d="M10 0 A10 10 0 1 0 20 10 L10 10 Z" fill="#f7b733"/></svg>')
@@ -941,21 +1059,21 @@ class PacmanGame {
   }
 
   showEndScreen(title, subtitle) {
-    const et = document.getElementById('endTitle');
+    const et = $('endTitle');
     if (et) et.textContent = title;
-    const es = document.getElementById('endSubtitle');
+    const es = $('endSubtitle');
     if (es) es.textContent = subtitle;
 
-    const fs = document.getElementById('finalScore');
+    const fs = $('finalScore');
     if (fs) fs.textContent = this.score.toString().padStart(5, '0');
 
-    const submit = document.getElementById('submitBtn');
+    const submit = $('submitBtn');
     if (submit) {
-      submit.href = leaderboard.submitUrl(this.score, this.commitsEaten, this.totalCommits);
+      submit.href = leaderboard.submitUrl(this.replayPayload());
       submit.classList.toggle('hidden', this.score <= 0);
     }
 
-    const rankEl = document.getElementById('finalRank');
+    const rankEl = $('finalRank');
     if (rankEl) {
       if (this.score > 0) {
         const rank = leaderboard.rankFor(this.score);
@@ -967,7 +1085,7 @@ class PacmanGame {
       }
     }
 
-    const go = document.getElementById('gameOverOverlay');
+    const go = $('gameOverOverlay');
     if (go) go.classList.remove('hidden');
   }
 
@@ -1184,8 +1302,8 @@ class PacmanGame {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('gameCanvas');
+if (hasDOM) window.addEventListener('DOMContentLoaded', () => {
+  const canvas = $('gameCanvas');
   const game = new PacmanGame(canvas);
   window.pacmanGame = game;
 
@@ -1197,7 +1315,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  const startBtn = document.getElementById('startBtn');
+  const startBtn = $('startBtn');
   if (startBtn) {
     startBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1212,7 +1330,7 @@ window.addEventListener('DOMContentLoaded', () => {
     canvas.focus();
   });
 
-  const restartBtn = document.getElementById('restartBtn');
+  const restartBtn = $('restartBtn');
   if (restartBtn) {
     restartBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1221,7 +1339,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const pauseBtn = document.getElementById('pauseBtn');
+  const pauseBtn = $('pauseBtn');
   if (pauseBtn) {
     pauseBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1229,13 +1347,13 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const muteBtn = document.getElementById('muteBtn');
+  const muteBtn = $('muteBtn');
   if (muteBtn) {
     muteBtn.addEventListener('click', (e) => {
       e.preventDefault();
       audio.muted = !audio.muted;
-      const muteIcon = document.getElementById('muteIcon');
-      const muteLabel = document.getElementById('muteLabel');
+      const muteIcon = $('muteIcon');
+      const muteLabel = $('muteLabel');
       if (audio.muted) {
         if (muteIcon) {
           muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
@@ -1252,3 +1370,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   requestAnimationFrame((t) => game.loop(t));
 });
+
+// Node (leaderboard verification) entry point
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { PacmanGame, encodeInputs, decodeInputs, MAX_SCORE, INITIAL_MAP };
+}
