@@ -75,6 +75,75 @@ class RetroAudio {
 
 const audio = new RetroAudio();
 
+// ---------------------------------------------------------------------------
+// Global leaderboard: read from leaderboard.json (written by a GitHub Action
+// that verifies score issues opened through the SUBMIT SCORE button).
+// ---------------------------------------------------------------------------
+const REPO = 'AlexVila0204/AlexVila0204';
+const LEADERBOARD_URL = 'leaderboard.json';
+const MAX_SCORE = 14700;
+
+const leaderboard = {
+  entries: [],
+
+  async load() {
+    try {
+      const res = await fetch(`${LEADERBOARD_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      this.entries = (Array.isArray(data.scores) ? data.scores : [])
+        .filter(e => e && typeof e.user === 'string' && /^[A-Za-z0-9-]{1,39}$/.test(e.user) && Number.isFinite(e.score))
+        .sort((a, b) => b.score - a.score);
+    } catch (e) {
+      this.entries = [];
+    }
+    this.render();
+    return this.entries;
+  },
+
+  top() {
+    return this.entries.length ? this.entries[0].score : 0;
+  },
+
+  // Rank a score would get on the current board (1 = best)
+  rankFor(score) {
+    return this.entries.filter(e => e.score > score).length + 1;
+  },
+
+  render() {
+    const list = document.getElementById('leaderboardList');
+    if (!list) return;
+    if (this.entries.length === 0) {
+      list.innerHTML = '<li class="lb-empty">No scores yet.<br />The first seat is yours.</li>';
+      return;
+    }
+    list.innerHTML = this.entries.slice(0, 10).map((e, i) => `
+      <li class="lb-row rank-${i + 1}">
+        <span class="lb-rank">${i + 1}</span>
+        <img class="lb-avatar" src="https://github.com/${e.user}.png?size=52" alt="" loading="lazy" />
+        <a class="lb-user" href="https://github.com/${e.user}" target="_blank" rel="noopener" title="@${e.user}">@${e.user}</a>
+        <span class="lb-score">${Number(e.score).toLocaleString('en-US')}</span>
+      </li>`).join('');
+  },
+
+  submitUrl(score, commits, total) {
+    const title = `Pac-Man score: ${score}`;
+    const payload = JSON.stringify({ score, commits, total, v: 1 });
+    const body = [
+      '🕹️ **GitHub Arcade Pac-Man — score submission**',
+      '',
+      '| Score | Commits eaten |',
+      '| --: | :-: |',
+      `| **${score.toLocaleString('en-US')}** | ${commits} / ${total} |`,
+      '',
+      `<!-- pacman-score:${payload} -->`,
+      '',
+      '_Just press **Submit new issue**. The leaderboard bot verifies the score, adds your avatar to the ranking on the profile README and closes this issue automatically._'
+    ].join('\n');
+    return `https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}&labels=pacman-score`;
+  }
+};
+
 const TILE_SIZE = 24;
 const COLS = 19;
 const ROWS = 21;
@@ -103,18 +172,29 @@ const DIRS = [
   { dx: 1, dy: 0 }
 ];
 
+// Level-1 arcade speed table, scaled so Pac-Man's 80% = 2 px/frame
+// (Pac-Man 80%, ghosts 75%, frightened ghosts 50%, tunnel 40%, Elroy 80% / 85%)
 const SPEED = {
   pacman: 2.0,
-  ghost: 1.8,
-  elroy1: 1.9,
-  elroy2: 2.0,
-  frightened: 1.1,
+  pacmanFrightened: 2.25,
+  ghost: 1.875,
+  elroy1: 2.0,
+  elroy2: 2.125,
+  frightened: 1.25,
   tunnel: 1.0,
   eyes: 4.0,
   house: 0.4,
   exit: 1.2,
   enter: 2.0
 };
+
+// Ghost house release (Pac-Man Dossier): personal dot counters on a fresh
+// board, a global counter after losing a life, and a 4 s no-dot timeout.
+const DOT_LIMITS = [0, 0, 16, 33];   // 12% / 25% of the dots, like the 244-dot arcade board
+const GLOBAL_DOT_LIMITS = [0, 7, 17, 32];
+const NO_DOT_TIMEOUT = 4 * 60;
+const FRIGHTENED_FRAMES = 6 * 60;
+const ELROY_DOTS = [15, 8];
 
 // 1 = Wall, 2 = Light Commit (10), 3 = Med Commit (50), 4 = Dark Commit (100), 5 = Power Pellet (50), 0 = Empty, 6 = Ghost Gate
 const INITIAL_MAP = [
@@ -143,10 +223,10 @@ const INITIAL_MAP = [
 
 // Blinky / Pinky / Inky / Clyde personalities, GitHub themed
 const GHOST_DEFS = [
-  { name: 'Merge Conflict', color: '#ff3366', homeX: 9,  scatter: { col: COLS - 2, row: -2 },       exitDelay: 0 },
-  { name: 'NullPointer',    color: '#ff77aa', homeX: 9,  scatter: { col: 1, row: -2 },              exitDelay: 60 },
-  { name: 'Memory Leak',    color: '#00f0ff', homeX: 8,  scatter: { col: COLS - 2, row: ROWS + 1 }, exitDelay: 300 },
-  { name: 'Prod Bug',       color: '#ff9900', homeX: 10, scatter: { col: 1, row: ROWS + 1 },        exitDelay: 600 }
+  { name: 'Merge Conflict', color: '#ff3366', homeX: 9,  scatter: { col: COLS - 2, row: -2 } },
+  { name: 'NullPointer',    color: '#ff77aa', homeX: 9,  scatter: { col: 1, row: -2 } },
+  { name: 'Memory Leak',    color: '#00f0ff', homeX: 8,  scatter: { col: COLS - 2, row: ROWS + 1 } },
+  { name: 'Prod Bug',       color: '#ff9900', homeX: 10, scatter: { col: 1, row: ROWS + 1 } }
 ];
 
 class PacmanGame {
@@ -158,15 +238,17 @@ class PacmanGame {
 
     this.map = [];
     this.score = 0;
-    this.highScore = parseInt(localStorage.getItem('gh_pacman_highscore') || '12040', 10);
+    this.highScore = parseInt(localStorage.getItem('gh_pacman_highscore') || '0', 10) || 0;
     this.commitsEaten = 0;
     this.totalCommits = 0;
     this.lives = 3;
     this.state = 'READY'; // READY, PLAYING, PAUSED, DYING, GAMEOVER, VICTORY
 
     this.frightenedTimer = 0;
-    this.frightenedDuration = 7 * 60;
     this.ghostCombo = 0;
+    this.useGlobalCounter = false;
+    this.globalDotCounter = 0;
+    this.noDotTimer = 0;
     this.freezeTimer = 0;
     this.readyTimer = 0;
     this.deathTimer = 0;
@@ -197,17 +279,16 @@ class PacmanGame {
       color: def.color,
       homeX: def.homeX * TILE_SIZE + TILE_SIZE / 2,
       scatter: def.scatter,
-      exitDelay: def.exitDelay,
       x: 0, y: 0,
       dirX: 0, dirY: 0,
       state: 'house', // house, exiting, normal, frightened, eaten, entering
-      exitTimer: 0,
+      dotCounter: 0,
       bobDir: 1,
       decidedKey: -1
     }));
 
     this.initMap();
-    this.resetPositions();
+    this.resetPositions(true);
     this.bindEvents();
     this.updateHUD();
   }
@@ -368,12 +449,54 @@ class PacmanGame {
     this.score = 0;
     this.lives = 3;
     this.popups = [];
-    this.resetPositions();
+    this.resetPositions(true);
     this.updateHUD();
     this.startGame();
   }
 
-  resetPositions() {
+  // Fresh board: personal dot counters. After a lost life: shared global counter.
+  resetHouseCounters(freshBoard) {
+    this.noDotTimer = 0;
+    if (freshBoard) {
+      this.useGlobalCounter = false;
+      this.ghosts.forEach(ghost => { ghost.dotCounter = 0; });
+    } else {
+      this.useGlobalCounter = true;
+      this.globalDotCounter = 0;
+    }
+  }
+
+  // Most preferred ghost still waiting in the house (Pinky, Inky, Clyde order)
+  nextHouseGhost() {
+    return this.ghosts.find(ghost => ghost.state === 'house') || null;
+  }
+
+  onDotEaten() {
+    this.noDotTimer = 0;
+    const ghost = this.nextHouseGhost();
+    if (!ghost) return;
+    if (this.useGlobalCounter) {
+      this.globalDotCounter++;
+      if (this.globalDotCounter >= GLOBAL_DOT_LIMITS[ghost.id]) {
+        ghost.state = 'exiting';
+        if (ghost.id === 3) this.useGlobalCounter = false;
+      }
+    } else {
+      ghost.dotCounter++;
+      if (ghost.dotCounter >= DOT_LIMITS[ghost.id]) ghost.state = 'exiting';
+    }
+  }
+
+  tickHouseTimer() {
+    this.noDotTimer++;
+    if (this.noDotTimer < NO_DOT_TIMEOUT) return;
+    this.noDotTimer = 0;
+    const ghost = this.nextHouseGhost();
+    if (ghost) ghost.state = 'exiting';
+  }
+
+  resetPositions(freshBoard = false) {
+    this.resetHouseCounters(freshBoard);
     const p = this.pacman;
     p.x = 9 * TILE_SIZE + TILE_SIZE / 2;
     p.y = 16 * TILE_SIZE + TILE_SIZE / 2;
@@ -405,7 +528,6 @@ class PacmanGame {
         ghost.y = HOUSE_Y;
         ghost.dirX = 0; ghost.dirY = ghost.bobDir;
         ghost.state = 'house';
-        ghost.exitTimer = ghost.exitDelay;
       }
     });
   }
@@ -433,7 +555,7 @@ class PacmanGame {
     }
 
     // 2. Advance, never past the tile centre if the next tile is a wall
-    let step = p.speed;
+    let step = this.frightenedTimer > 0 ? SPEED.pacmanFrightened : SPEED.pacman;
     if (!this.isWalkable(col + p.dirX, row + p.dirY)) {
       const ahead = p.dirX !== 0 ? (cx - p.x) * p.dirX : (cy - p.y) * p.dirY;
       step = Math.max(0, Math.min(step, ahead));
@@ -466,6 +588,7 @@ class PacmanGame {
       if ([2, 3, 4, 5].includes(tile)) {
         this.map[eatRow][eatCol] = 0;
         this.commitsEaten++;
+        this.onDotEaten();
 
         if (tile === 2) {
           this.addScore(10);
@@ -497,7 +620,7 @@ class PacmanGame {
   // ---------------------------------------------------------------------------
 
   startFrightened() {
-    this.frightenedTimer = this.frightenedDuration;
+    this.frightenedTimer = FRIGHTENED_FRAMES;
     this.ghostCombo = 0;
     this.ghosts.forEach(ghost => {
       if (ghost.state === 'normal' || ghost.state === 'frightened') {
@@ -540,7 +663,7 @@ class PacmanGame {
   }
 
   isElroy(ghost) {
-    return ghost.id === 0 && (this.totalCommits - this.commitsEaten) <= 25;
+    return ghost.id === 0 && (this.totalCommits - this.commitsEaten) <= ELROY_DOTS[0];
   }
 
   ghostTarget(ghost) {
@@ -582,8 +705,8 @@ class PacmanGame {
     if (ghost.state === 'frightened') return SPEED.frightened;
     if (ghost.id === 0) {
       const left = this.totalCommits - this.commitsEaten;
-      if (left <= 10) return SPEED.elroy2;
-      if (left <= 25) return SPEED.elroy1;
+      if (left <= ELROY_DOTS[1]) return SPEED.elroy2;
+      if (left <= ELROY_DOTS[0]) return SPEED.elroy1;
     }
     return SPEED.ghost;
   }
@@ -661,8 +784,11 @@ class PacmanGame {
         if (ghost.y < HOUSE_Y - 5) ghost.bobDir = 1;
         ghost.dirX = 0;
         ghost.dirY = ghost.bobDir;
-        if (ghost.exitTimer > 0) ghost.exitTimer--;
-        else ghost.state = 'exiting';
+        // Release is decided by the dot counters / timeout, see onDotEaten().
+        // A ghost whose personal counter is already satisfied leaves at once.
+        if (!this.useGlobalCounter && ghost.dotCounter >= DOT_LIMITS[ghost.id] && this.nextHouseGhost() === ghost) {
+          ghost.state = 'exiting';
+        }
         return;
       }
       case 'exiting': {
@@ -693,7 +819,6 @@ class PacmanGame {
         ghost.y = Math.min(HOUSE_Y, ghost.y + SPEED.enter);
         if (ghost.y >= HOUSE_Y) {
           ghost.state = 'house';
-          ghost.exitTimer = 30;
           ghost.bobDir = 1;
         }
         return;
@@ -781,6 +906,7 @@ class PacmanGame {
       if (this.modeTimer <= 0) this.advanceMode();
     }
 
+    this.tickHouseTimer();
     this.updatePacman();
     if (this.state !== 'PLAYING') return;
 
@@ -819,6 +945,28 @@ class PacmanGame {
     if (et) et.textContent = title;
     const es = document.getElementById('endSubtitle');
     if (es) es.textContent = subtitle;
+
+    const fs = document.getElementById('finalScore');
+    if (fs) fs.textContent = this.score.toString().padStart(5, '0');
+
+    const submit = document.getElementById('submitBtn');
+    if (submit) {
+      submit.href = leaderboard.submitUrl(this.score, this.commitsEaten, this.totalCommits);
+      submit.classList.toggle('hidden', this.score <= 0);
+    }
+
+    const rankEl = document.getElementById('finalRank');
+    if (rankEl) {
+      if (this.score > 0) {
+        const rank = leaderboard.rankFor(this.score);
+        rankEl.textContent = rank === 1
+          ? 'That would be #1 on the global board!'
+          : `That would rank #${rank} on the global board.`;
+      } else {
+        rankEl.textContent = '';
+      }
+    }
+
     const go = document.getElementById('gameOverOverlay');
     if (go) go.classList.remove('hidden');
   }
@@ -1039,6 +1187,15 @@ class PacmanGame {
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('gameCanvas');
   const game = new PacmanGame(canvas);
+  window.pacmanGame = game;
+
+  // Global board: the HIGH SCORE slot shows the best of the world vs. this browser
+  leaderboard.load().then(() => {
+    if (leaderboard.top() > game.highScore) {
+      game.highScore = leaderboard.top();
+      game.updateHUD();
+    }
+  });
 
   const startBtn = document.getElementById('startBtn');
   if (startBtn) {

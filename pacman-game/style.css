@@ -383,3 +383,212 @@ canvas#gameCanvas {
 .d-left { grid-column: 1; grid-row: 2; }
 .d-right { grid-column: 3; grid-row: 2; }
 .d-down { grid-column: 2; grid-row: 3; }
+
+/* Screen + leaderboard side by side (stacked on small screens) */
+.arcade-main {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+}
+
+.leaderboard-panel {
+  width: 230px;
+  flex: 0 0 230px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 15, 26, 0.85);
+  border: 1px solid #1f2b40;
+  border-radius: 12px;
+  padding: 14px 12px;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+}
+
+.lb-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px dashed #22324e;
+}
+
+.lb-title {
+  font-family: var(--font-arcade);
+  font-size: 11px;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 10px rgba(247, 183, 51, 0.8);
+  letter-spacing: 1px;
+}
+
+.lb-sub {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.lb-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.lb-row {
+  display: grid;
+  grid-template-columns: 18px 26px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: rgba(20, 31, 51, 0.6);
+  border: 1px solid transparent;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.lb-row:hover {
+  border-color: var(--neon-blue);
+  transform: translateX(2px);
+}
+
+.lb-row.rank-1 { border-color: rgba(247, 183, 51, 0.6); box-shadow: 0 0 10px rgba(247, 183, 51, 0.25); }
+.lb-row.rank-2 { border-color: rgba(203, 213, 225, 0.45); }
+.lb-row.rank-3 { border-color: rgba(205, 127, 50, 0.55); }
+
+.lb-rank {
+  font-family: var(--font-arcade);
+  font-size: 9px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.lb-row.rank-1 .lb-rank { color: var(--neon-yellow); }
+
+.lb-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #334155;
+  background: #0b0f19;
+  display: block;
+}
+
+.lb-user {
+  font-size: 12px;
+  color: #e2e8f0;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-user:hover { color: var(--neon-blue); }
+
+.lb-score {
+  font-family: var(--font-arcade);
+  font-size: 9px;
+  color: var(--neon-green);
+  text-shadow: 0 0 6px rgba(57, 211, 83, 0.6);
+}
+
+.lb-empty {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  padding: 18px 6px;
+  line-height: 1.5;
+}
+
+.lb-hint {
+  margin-top: 12px;
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.lb-hint b { color: var(--neon-pink); }
+
+/* Game over: score + submit */
+.final-score {
+  font-family: var(--font-arcade);
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.final-score span {
+  color: #fff;
+  font-size: 18px;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+  margin-left: 6px;
+}
+
+.final-rank {
+  font-size: 12px;
+  color: var(--neon-green);
+  min-height: 16px;
+  margin-bottom: 16px;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-arcade.btn-submit {
+  text-decoration: none;
+  display: inline-block;
+  background: linear-gradient(180deg, #f7b733 0%, #c98a0e 100%);
+  border-color: #ffd97a;
+  color: #0b0f19;
+  box-shadow: 0 0 15px rgba(247, 183, 51, 0.5), inset 0 2px 0 rgba(255, 255, 255, 0.5);
+}
+
+.btn-arcade.btn-submit:hover {
+  box-shadow: 0 0 25px rgba(247, 183, 51, 0.8);
+}
+
+.btn-arcade.btn-submit.hidden { display: none; }
+
+.btn-arcade.btn-secondary {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-color: #334155;
+  box-shadow: none;
+}
+
+.submit-hint {
+  margin-top: 14px;
+  font-size: 10px;
+  color: #64748b;
+  max-width: 300px;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .arcade-main {
+    flex-direction: column;
+    align-items: center;
+  }
+  .leaderboard-panel {
+    width: 100%;
+    max-width: 456px;
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .arcade-cabinet { padding: 14px; }
+  .arcade-header { flex-direction: column; gap: 8px; text-align: center; }
+  .marquee-title { font-size: 11px; }
+  .profile-tag { font-size: 9px; }
+  .scoreboard { padding: 10px 8px; gap: 6px; }
+  .score-label { font-size: 7px; letter-spacing: 0; }
+  .score-value { font-size: 12px; }
+}

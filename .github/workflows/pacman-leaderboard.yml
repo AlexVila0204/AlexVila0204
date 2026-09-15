@@ -1,0 +1,141 @@
+name: Pac-Man leaderboard
+
+# Players submit a score by opening a pre-filled issue from the game's
+# "SUBMIT SCORE" button. This workflow validates it, records the best score
+# per GitHub user, refreshes the README ranking, closes the issue and
+# redeploys the game so the in-game board updates too.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: pacman-leaderboard
+  cancel-in-progress: false
+
+jobs:
+  record:
+    if: contains(github.event.issue.title, 'Pac-Man score')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate and record score
+        id: record
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issue = context.payload.issue;
+            const user = issue.user.login;
+            const number = issue.number;
+            const MAX_SCORE = 14700;
+            const LB_PATH = 'pacman-game/leaderboard.json';
+            const README_PATH = 'README.md';
+            const GAME_URL = 'https://alexvila0204.github.io/AlexVila0204/';
+            const fmt = (n) => Number(n).toLocaleString('en-US');
+
+            const say = (body) => github.rest.issues.createComment({ ...context.repo, issue_number: number, body });
+            const close = (reason) => github.rest.issues.update({ ...context.repo, issue_number: number, state: 'closed', state_reason: reason });
+            const label = async () => {
+              try { await github.rest.issues.addLabels({ ...context.repo, issue_number: number, labels: ['pacman-score'] }); } catch (e) {}
+            };
+
+            core.setOutput('changed', 'false');
+            if (issue.user.type === 'Bot') return;
+
+            // Payload embedded by the game, with the title as a fallback
+            let payload = null;
+            const embedded = (issue.body || '').match(/<!--\s*pacman-score:(\{[^]*?\})\s*-->/);
+            if (embedded) { try { payload = JSON.parse(embedded[1]); } catch (e) {} }
+            if (!payload) {
+              const t = issue.title.match(/Pac-Man score:\s*([\d,.]+)/i);
+              if (t) payload = { score: Number(t[1].replace(/[,.]/g, '')) };
+            }
+
+            const score = payload ? Number(payload.score) : NaN;
+            const valid = Number.isInteger(score) && score > 0 && score <= MAX_SCORE && score % 10 === 0;
+            await label();
+            if (!valid) {
+              await say(`👾 Hmm, that score doesn't look like something the arcade produced (the maximum possible is ${fmt(MAX_SCORE)}).\n\nPlay again at ${GAME_URL} and use the **SUBMIT SCORE** button at the end of your run!`);
+              await close('not_planned');
+              return;
+            }
+
+            const data = JSON.parse(fs.readFileSync(LB_PATH, 'utf8'));
+            const scores = Array.isArray(data.scores) ? data.scores : [];
+            const today = new Date().toISOString().slice(0, 10);
+            const commits = Number.isInteger(payload.commits) ? payload.commits : null;
+            const existing = scores.find(s => s.user.toLowerCase() === user.toLowerCase());
+
+            if (existing && score <= existing.score) {
+              const rank = scores.findIndex(s => s === existing) + 1;
+              await say(`🕹️ Nice run, @${user}! Your best on the board is still **${fmt(existing.score)}** (rank #${rank}). Beat it and submit again!`);
+              await close('completed');
+              return;
+            }
+
+            if (existing) {
+              existing.score = score;
+              existing.commits = commits;
+              existing.date = today;
+              existing.issue = number;
+            } else {
+              scores.push({ user, score, commits, date: today, issue: number });
+            }
+            scores.sort((a, b) => b.score - a.score || a.date.localeCompare(b.date));
+            data.scores = scores.slice(0, 50);
+            data.updated = new Date().toISOString();
+            data.maxScore = MAX_SCORE;
+            fs.writeFileSync(LB_PATH, JSON.stringify(data, null, 2) + '\n');
+
+            // README top 10
+            const medals = ['🥇', '🥈', '🥉'];
+            const rows = data.scores.slice(0, 10).map((s, i) =>
+              `| ${medals[i] || i + 1} | <img src="https://github.com/${s.user}.png?size=24" width="24" height="24" alt="" /> [@${s.user}](https://github.com/${s.user}) | **${fmt(s.score)}** | ${s.date} |`
+            );
+            const table = ['| # | Player | Score | Date |', '| :-: | :-- | --: | :-: |', ...rows].join('\n');
+            const readme = fs.readFileSync(README_PATH, 'utf8');
+            const START = '<!-- PACMAN-LEADERBOARD:START -->';
+            const END = '<!-- PACMAN-LEADERBOARD:END -->';
+            const a = readme.indexOf(START);
+            const b = readme.indexOf(END);
+            if (a !== -1 && b !== -1 && b > a) {
+              fs.writeFileSync(README_PATH, readme.slice(0, a + START.length) + '\n' + table + '\n' + readme.slice(b));
+            }
+
+            const rank = data.scores.findIndex(s => s.user.toLowerCase() === user.toLowerCase()) + 1;
+            await say(`🏆 Score verified! @${user} is now **#${rank}** on the GitHub Arcade leaderboard with **${fmt(score)}** points.\n\nYour avatar is on my profile: https://github.com/${context.repo.owner} — and the in-game board updates in a minute.`);
+            await close('completed');
+            core.setOutput('changed', 'true');
+            core.setOutput('user', user);
+            core.setOutput('score', String(score));
+
+      - name: Commit leaderboard
+        if: steps.record.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pacman-game/leaderboard.json README.md
+          git commit -m "chore(leaderboard): @${{ steps.record.outputs.user }} scored ${{ steps.record.outputs.score }}"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Redeploy game with the new board
+        if: steps.record.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              ...context.repo,
+              workflow_id: 'deploy-game.yml',
+              ref: 'main'
+            });

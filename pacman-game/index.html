@@ -41,6 +41,7 @@
     </div>
 
     <!-- Screen / Canvas Container -->
+    <div class="arcade-main">
     <div class="screen-container">
       <canvas id="gameCanvas" tabindex="0"></canvas>
       <div class="scanlines"></div>
@@ -110,8 +111,27 @@
       <div class="game-overlay hidden" id="gameOverOverlay">
         <h2 class="overlay-title" id="endTitle">GAME OVER</h2>
         <p class="overlay-subtitle" id="endSubtitle">Your commits were consumed by production bugs.</p>
-        <button class="btn-arcade" id="restartBtn">TRY AGAIN</button>
+        <p class="final-score">SCORE <span id="finalScore">00000</span></p>
+        <p class="final-rank" id="finalRank"></p>
+        <div class="overlay-actions">
+          <a class="btn-arcade btn-submit" id="submitBtn" href="#" target="_blank" rel="noopener">SUBMIT SCORE</a>
+          <button class="btn-arcade btn-secondary" id="restartBtn">TRY AGAIN</button>
+        </div>
+        <p class="submit-hint">Submitting opens a pre-filled GitHub issue. A bot verifies it and puts your avatar on the board.</p>
       </div>
+    </div>
+
+    <!-- Global leaderboard (fed by leaderboard.json, updated by GitHub Actions) -->
+    <aside class="leaderboard-panel" id="leaderboardPanel">
+      <div class="lb-header">
+        <span class="lb-title">TOP HACKERS</span>
+        <span class="lb-sub">global ranking</span>
+      </div>
+      <ol class="lb-list" id="leaderboardList">
+        <li class="lb-empty">Loading…</li>
+      </ol>
+      <p class="lb-hint">Finish a run and hit <b>SUBMIT SCORE</b> to claim a seat with your GitHub account.</p>
+    </aside>
     </div>
 
     <!-- Mobile Virtual D-Pad -->
