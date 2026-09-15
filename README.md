@@ -49,6 +49,5 @@ I build mission-critical systems for the financial sector: payment terminals, el
 ## Activity
 
 <p align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=AlexVila0204&show_icons=true&theme=tokyonight&hide_border=true&count_private=true" height="165" />
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=AlexVila0204&layout=compact&theme=tokyonight&hide_border=true" height="165" />
+  <img src="https://ghchart.rshah.org/409ba5/AlexVila0204" alt="Contribution graph" width="100%" />
 </p>
