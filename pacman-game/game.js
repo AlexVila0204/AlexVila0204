@@ -1,6 +1,3 @@
-// GitHub Retro Pac-Man Arcade Engine
-// Theme: Git Commits, Octocat Power Pellets & Bug Ghosts
-
 class RetroAudio {
   constructor() {
     this.ctx = null;
@@ -81,6 +78,43 @@ const audio = new RetroAudio();
 const TILE_SIZE = 24;
 const COLS = 19;
 const ROWS = 21;
+const TUNNEL_ROW = 10;
+const STEP_MS = 1000 / 60;
+
+// Ghost house geometry
+const HOUSE_DOOR = { col: 9, row: 7 };                       // tile just above the gate
+const HOUSE_DOOR_X = HOUSE_DOOR.col * TILE_SIZE + TILE_SIZE / 2;
+const HOUSE_DOOR_Y = HOUSE_DOOR.row * TILE_SIZE + TILE_SIZE / 2;
+const HOUSE_Y = 9 * TILE_SIZE + TILE_SIZE;                   // vertical middle of the house interior
+
+// Original arcade timing (frames @60fps): scatter / chase alternation
+const MODE_SCHEDULE = [
+  ['SCATTER', 7 * 60], ['CHASE', 20 * 60],
+  ['SCATTER', 7 * 60], ['CHASE', 20 * 60],
+  ['SCATTER', 5 * 60], ['CHASE', 20 * 60],
+  ['SCATTER', 5 * 60], ['CHASE', Infinity]
+];
+
+// Decision priority when distances tie: up, left, down, right (like the arcade)
+const DIRS = [
+  { dx: 0, dy: -1 },
+  { dx: -1, dy: 0 },
+  { dx: 0, dy: 1 },
+  { dx: 1, dy: 0 }
+];
+
+const SPEED = {
+  pacman: 2.0,
+  ghost: 1.8,
+  elroy1: 1.9,
+  elroy2: 2.0,
+  frightened: 1.1,
+  tunnel: 1.0,
+  eyes: 4.0,
+  house: 0.4,
+  exit: 1.2,
+  enter: 2.0
+};
 
 // 1 = Wall, 2 = Light Commit (10), 3 = Med Commit (50), 4 = Dark Commit (100), 5 = Power Pellet (50), 0 = Empty, 6 = Ghost Gate
 const INITIAL_MAP = [
@@ -92,11 +126,11 @@ const INITIAL_MAP = [
   [1,2,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,2,1],
   [1,4,2,2,4,1,2,2,1,1,1,2,2,1,4,2,2,4,1],
   [1,1,1,1,2,1,1,0,0,0,0,0,1,1,2,1,1,1,1],
-  [0,0,0,1,2,1,0,0,1,6,1,0,0,1,2,1,0,0,0],
+  [1,1,1,1,2,1,0,0,1,6,1,0,0,1,2,1,1,1,1],
   [1,1,1,1,2,1,0,1,0,0,0,1,0,1,2,1,1,1,1],
   [0,0,0,0,2,0,0,1,0,0,0,1,0,0,2,0,0,0,0],
   [1,1,1,1,2,1,0,1,1,1,1,1,0,1,2,1,1,1,1],
-  [0,0,0,1,2,1,0,0,0,0,0,0,0,1,2,1,0,0,0],
+  [1,1,1,1,2,1,0,0,0,0,0,0,0,1,2,1,1,1,1],
   [1,1,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,1,1],
   [1,2,2,2,3,2,2,2,1,1,1,2,2,2,3,2,2,2,1],
   [1,2,1,1,2,1,1,2,1,1,1,2,1,1,2,1,1,2,1],
@@ -105,6 +139,14 @@ const INITIAL_MAP = [
   [1,4,2,2,4,1,2,2,1,1,1,2,2,1,4,2,2,4,1],
   [1,2,1,1,1,1,1,2,2,2,2,2,1,1,1,1,1,2,1],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+// Blinky / Pinky / Inky / Clyde personalities, GitHub themed
+const GHOST_DEFS = [
+  { name: 'Merge Conflict', color: '#ff3366', homeX: 9,  scatter: { col: COLS - 2, row: -2 },       exitDelay: 0 },
+  { name: 'NullPointer',    color: '#ff77aa', homeX: 9,  scatter: { col: 1, row: -2 },              exitDelay: 60 },
+  { name: 'Memory Leak',    color: '#00f0ff', homeX: 8,  scatter: { col: COLS - 2, row: ROWS + 1 }, exitDelay: 300 },
+  { name: 'Prod Bug',       color: '#ff9900', homeX: 10, scatter: { col: 1, row: ROWS + 1 },        exitDelay: 600 }
 ];
 
 class PacmanGame {
@@ -120,31 +162,52 @@ class PacmanGame {
     this.commitsEaten = 0;
     this.totalCommits = 0;
     this.lives = 3;
-    this.state = 'READY'; // READY, PLAYING, PAUSED, GAMEOVER, VICTORY
+    this.state = 'READY'; // READY, PLAYING, PAUSED, DYING, GAMEOVER, VICTORY
+
     this.frightenedTimer = 0;
-    this.frightenedDuration = 450;
+    this.frightenedDuration = 7 * 60;
+    this.ghostCombo = 0;
+    this.freezeTimer = 0;
+    this.readyTimer = 0;
+    this.deathTimer = 0;
+    this.popups = [];
+
+    this.modeIndex = 0;
+    this.mode = MODE_SCHEDULE[0][0];
+    this.modeTimer = MODE_SCHEDULE[0][1];
+
+    this.lastTime = 0;
+    this.accumulator = 0;
 
     this.pacman = {
-      x: 9 * TILE_SIZE + TILE_SIZE / 2,
-      y: 16 * TILE_SIZE + TILE_SIZE / 2,
-      dirX: -1, // Start moving left immediately
-      dirY: 0,
-      nextDirX: -1,
-      nextDirY: 0,
-      speed: 2,
+      x: 0, y: 0,
+      dirX: -1, dirY: 0,
+      nextDirX: -1, nextDirY: 0,
+      faceX: -1, faceY: 0,
+      moving: false,
+      speed: SPEED.pacman,
       mouthAngle: 0.2,
       mouthSpeed: 0.04,
       mouthOpening: true
     };
 
-    this.ghosts = [
-      { name: 'Merge Conflict', color: '#ff3366', col: 9, row: 8, x: 9 * TILE_SIZE + 12, y: 8 * TILE_SIZE + 12, dirX: 1, dirY: 0, speed: 1.6, inHouse: false },
-      { name: 'NullPointer', color: '#ff77aa', col: 8, row: 10, x: 8 * TILE_SIZE + 12, y: 10 * TILE_SIZE + 12, dirX: 1, dirY: 0, speed: 1.5, inHouse: true, exitTimer: 60 },
-      { name: 'Memory Leak', color: '#00f0ff', col: 10, row: 10, x: 10 * TILE_SIZE + 12, y: 10 * TILE_SIZE + 12, dirX: -1, dirY: 0, speed: 1.4, inHouse: true, exitTimer: 160 },
-      { name: 'Prod Bug', color: '#ff9900', col: 9, row: 11, x: 9 * TILE_SIZE + 12, y: 11 * TILE_SIZE + 12, dirX: 0, dirY: 1, speed: 1.4, inHouse: true, exitTimer: 260 }
-    ];
+    this.ghosts = GHOST_DEFS.map((def, id) => ({
+      id,
+      name: def.name,
+      color: def.color,
+      homeX: def.homeX * TILE_SIZE + TILE_SIZE / 2,
+      scatter: def.scatter,
+      exitDelay: def.exitDelay,
+      x: 0, y: 0,
+      dirX: 0, dirY: 0,
+      state: 'house', // house, exiting, normal, frightened, eaten, entering
+      exitTimer: 0,
+      bobDir: 1,
+      decidedKey: -1
+    }));
 
     this.initMap();
+    this.resetPositions();
     this.bindEvents();
     this.updateHUD();
   }
@@ -166,53 +229,36 @@ class PacmanGame {
     const handleKey = (key) => {
       audio.init();
       switch (key) {
-        case 'ArrowUp':
-        case 'w':
-        case 'W':
-        case 'KeyW':
+        case 'ArrowUp': case 'w': case 'W': case 'KeyW':
           this.setDirection(0, -1);
           break;
-        case 'ArrowDown':
-        case 's':
-        case 'S':
-        case 'KeyS':
+        case 'ArrowDown': case 's': case 'S': case 'KeyS':
           this.setDirection(0, 1);
           break;
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-        case 'KeyA':
+        case 'ArrowLeft': case 'a': case 'A': case 'KeyA':
           this.setDirection(-1, 0);
           break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-        case 'KeyD':
+        case 'ArrowRight': case 'd': case 'D': case 'KeyD':
           this.setDirection(1, 0);
           break;
-        case ' ':
-        case 'p':
-        case 'P':
-        case 'KeyP':
+        case ' ': case 'p': case 'P': case 'KeyP':
           this.togglePause();
           break;
       }
     };
 
+    // Single capture-phase listener: works regardless of which element has focus.
     window.addEventListener('keydown', (e) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
         e.preventDefault();
       }
+      if (e.repeat) return;
       handleKey(e.key || e.code);
     }, { capture: true });
 
-    document.addEventListener('keydown', (e) => {
-      handleKey(e.key || e.code);
-    });
-
     // Virtual D-pad
     const addDpadListener = (el, dir) => {
-      const trigger = (e) => {
+      el.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
         audio.init();
@@ -220,9 +266,7 @@ class PacmanGame {
         if (dir === 'down') this.setDirection(0, 1);
         if (dir === 'left') this.setDirection(-1, 0);
         if (dir === 'right') this.setDirection(1, 0);
-      };
-      el.addEventListener('pointerdown', trigger);
-      el.addEventListener('click', trigger);
+      });
     };
 
     document.querySelectorAll('.d-btn').forEach(btn => {
@@ -255,17 +299,32 @@ class PacmanGame {
     }, { passive: true });
   }
 
-  isWalkable(col, row, isGhost = false) {
-    // Tunnel wrapping columns
-    if (row === 8 || row === 10 || row === 12) {
-      if (col < 0 || col >= COLS) return true;
-    }
+  // ---------------------------------------------------------------------------
+  // Maze helpers
+  // ---------------------------------------------------------------------------
+
+  isWalkable(col, row, allowGate = false) {
+    if (row === TUNNEL_ROW && (col < 0 || col >= COLS)) return true;
     if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
     const tile = this.map[row][col];
     if (tile === 1) return false;
-    if (tile === 6) return isGhost; // Ghost gate
+    if (tile === 6) return allowGate;
     return true;
   }
+
+  isTunnel(col, row) {
+    return row === TUNNEL_ROW && (col <= 3 || col >= COLS - 4);
+  }
+
+  wrapX(entity) {
+    const width = COLS * TILE_SIZE;
+    if (entity.x < -TILE_SIZE / 2) entity.x += width;
+    else if (entity.x > width + TILE_SIZE / 2) entity.x -= width;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Game flow
+  // ---------------------------------------------------------------------------
 
   setDirection(dx, dy) {
     if (this.state === 'READY') {
@@ -273,21 +332,19 @@ class PacmanGame {
     }
     if (this.state !== 'PLAYING') return;
 
-    // Instant reverse
-    if (dx === -this.pacman.dirX && dy === -this.pacman.dirY) {
-      this.pacman.dirX = dx;
-      this.pacman.dirY = dy;
-      this.pacman.nextDirX = dx;
-      this.pacman.nextDirY = dy;
-      return;
+    const p = this.pacman;
+    // Instant reverse, no need to be aligned
+    if (dx === -p.dirX && dy === -p.dirY) {
+      p.dirX = dx;
+      p.dirY = dy;
     }
-
-    this.pacman.nextDirX = dx;
-    this.pacman.nextDirY = dy;
+    p.nextDirX = dx;
+    p.nextDirY = dy;
   }
 
   startGame() {
     this.state = 'PLAYING';
+    this.readyTimer = 90;
     const startOverlay = document.getElementById('startOverlay');
     if (startOverlay) startOverlay.classList.add('hidden');
     const gameOverOverlay = document.getElementById('gameOverOverlay');
@@ -310,123 +367,100 @@ class PacmanGame {
     this.initMap();
     this.score = 0;
     this.lives = 3;
-    this.frightenedTimer = 0;
+    this.popups = [];
     this.resetPositions();
     this.updateHUD();
     this.startGame();
   }
 
   resetPositions() {
-    this.pacman.x = 9 * TILE_SIZE + TILE_SIZE / 2;
-    this.pacman.y = 16 * TILE_SIZE + TILE_SIZE / 2;
-    this.pacman.dirX = -1;
-    this.pacman.dirY = 0;
-    this.pacman.nextDirX = -1;
-    this.pacman.nextDirY = 0;
+    const p = this.pacman;
+    p.x = 9 * TILE_SIZE + TILE_SIZE / 2;
+    p.y = 16 * TILE_SIZE + TILE_SIZE / 2;
+    p.dirX = -1; p.dirY = 0;
+    p.nextDirX = -1; p.nextDirY = 0;
+    p.faceX = -1; p.faceY = 0;
+    p.moving = false;
+    p.mouthAngle = 0.2;
 
-    this.ghosts[0].x = 9 * TILE_SIZE + 12;
-    this.ghosts[0].y = 8 * TILE_SIZE + 12;
-    this.ghosts[0].inHouse = false;
-    this.ghosts[0].dirX = 1;
-    this.ghosts[0].dirY = 0;
+    this.frightenedTimer = 0;
+    this.freezeTimer = 0;
+    this.ghostCombo = 0;
+    this.modeIndex = 0;
+    this.mode = MODE_SCHEDULE[0][0];
+    this.modeTimer = MODE_SCHEDULE[0][1];
 
-    this.ghosts[1].x = 8 * TILE_SIZE + 12;
-    this.ghosts[1].y = 10 * TILE_SIZE + 12;
-    this.ghosts[1].inHouse = true;
-    this.ghosts[1].exitTimer = 60;
-
-    this.ghosts[2].x = 10 * TILE_SIZE + 12;
-    this.ghosts[2].y = 10 * TILE_SIZE + 12;
-    this.ghosts[2].inHouse = true;
-    this.ghosts[2].exitTimer = 160;
-
-    this.ghosts[3].x = 9 * TILE_SIZE + 12;
-    this.ghosts[3].y = 11 * TILE_SIZE + 12;
-    this.ghosts[3].inHouse = true;
-    this.ghosts[3].exitTimer = 260;
+    this.ghosts.forEach(ghost => {
+      ghost.decidedKey = -1;
+      ghost.bobDir = ghost.id % 2 === 0 ? 1 : -1;
+      if (ghost.id === 0) {
+        // Blinky starts outside, right above the door, heading left
+        ghost.x = HOUSE_DOOR_X;
+        ghost.y = HOUSE_DOOR_Y;
+        ghost.dirX = -1; ghost.dirY = 0;
+        ghost.state = 'normal';
+        ghost.decidedKey = HOUSE_DOOR.row * COLS + HOUSE_DOOR.col;
+      } else {
+        ghost.x = ghost.homeX;
+        ghost.y = HOUSE_Y;
+        ghost.dirX = 0; ghost.dirY = ghost.bobDir;
+        ghost.state = 'house';
+        ghost.exitTimer = ghost.exitDelay;
+      }
+    });
   }
 
+  // ---------------------------------------------------------------------------
+  // Pac-Man
+  // ---------------------------------------------------------------------------
+
   updatePacman() {
-    const curCol = Math.floor(this.pacman.x / TILE_SIZE);
-    const curRow = Math.floor(this.pacman.y / TILE_SIZE);
-    const centerTileX = curCol * TILE_SIZE + TILE_SIZE / 2;
-    const centerTileY = curRow * TILE_SIZE + TILE_SIZE / 2;
-    const distToCenterX = Math.abs(this.pacman.x - centerTileX);
-    const distToCenterY = Math.abs(this.pacman.y - centerTileY);
+    const p = this.pacman;
+    const col = Math.floor(p.x / TILE_SIZE);
+    const row = Math.floor(p.y / TILE_SIZE);
+    const cx = col * TILE_SIZE + TILE_SIZE / 2;
+    const cy = row * TILE_SIZE + TILE_SIZE / 2;
 
-    // Try turning to requested direction
-    if (this.pacman.nextDirX !== 0 || this.pacman.nextDirY !== 0) {
-      if (this.pacman.nextDirX !== this.pacman.dirX || this.pacman.nextDirY !== this.pacman.dirY) {
-        // Check if turn is perpendicular
-        const isTurningHorizontal = this.pacman.nextDirX !== 0 && this.pacman.dirY !== 0;
-        const isTurningVertical = this.pacman.nextDirY !== 0 && this.pacman.dirX !== 0;
-
-        if (isTurningHorizontal && distToCenterY <= 6) {
-          if (this.isWalkable(curCol + this.pacman.nextDirX, curRow)) {
-            this.pacman.y = centerTileY;
-            this.pacman.dirX = this.pacman.nextDirX;
-            this.pacman.dirY = 0;
-          }
-        } else if (isTurningVertical && distToCenterX <= 6) {
-          if (this.isWalkable(curCol, curRow + this.pacman.nextDirY)) {
-            this.pacman.x = centerTileX;
-            this.pacman.dirY = this.pacman.nextDirY;
-            this.pacman.dirX = 0;
-          }
-        } else if (this.pacman.dirX === 0 && this.pacman.dirY === 0) {
-          // Stopped against a wall: try starting in next direction
-          if (this.isWalkable(curCol + this.pacman.nextDirX, curRow + this.pacman.nextDirY)) {
-            this.pacman.dirX = this.pacman.nextDirX;
-            this.pacman.dirY = this.pacman.nextDirY;
-          }
-        }
+    // 1. Buffered turn (with a little cornering tolerance, like the arcade)
+    if (p.nextDirX !== p.dirX || p.nextDirY !== p.dirY) {
+      const wantHorizontal = p.nextDirX !== 0;
+      const aligned = wantHorizontal ? Math.abs(p.y - cy) <= 6 : Math.abs(p.x - cx) <= 6;
+      if (aligned && this.isWalkable(col + p.nextDirX, row + p.nextDirY)) {
+        if (wantHorizontal) p.y = cy; else p.x = cx;
+        p.dirX = p.nextDirX;
+        p.dirY = p.nextDirY;
       }
     }
 
-    // Check if moving into wall
-    const nextCol = curCol + this.pacman.dirX;
-    const nextRow = curRow + this.pacman.dirY;
-
-    if (!this.isWalkable(nextCol, nextRow)) {
-      // Approaching wall: clamp at center
-      if (this.pacman.dirX === 1 && this.pacman.x >= centerTileX) {
-        this.pacman.x = centerTileX;
-        this.pacman.dirX = 0;
-      } else if (this.pacman.dirX === -1 && this.pacman.x <= centerTileX) {
-        this.pacman.x = centerTileX;
-        this.pacman.dirX = 0;
-      } else if (this.pacman.dirY === 1 && this.pacman.y >= centerTileY) {
-        this.pacman.y = centerTileY;
-        this.pacman.dirY = 0;
-      } else if (this.pacman.dirY === -1 && this.pacman.y <= centerTileY) {
-        this.pacman.y = centerTileY;
-        this.pacman.dirY = 0;
-      }
+    // 2. Advance, never past the tile centre if the next tile is a wall
+    let step = p.speed;
+    if (!this.isWalkable(col + p.dirX, row + p.dirY)) {
+      const ahead = p.dirX !== 0 ? (cx - p.x) * p.dirX : (cy - p.y) * p.dirY;
+      step = Math.max(0, Math.min(step, ahead));
     }
+    p.moving = step > 0;
+    if (p.moving) {
+      p.x += p.dirX * step;
+      p.y += p.dirY * step;
+      p.faceX = p.dirX;
+      p.faceY = p.dirY;
+    }
+    this.wrapX(p);
 
-    // Advance
-    this.pacman.x += this.pacman.dirX * this.pacman.speed;
-    this.pacman.y += this.pacman.dirY * this.pacman.speed;
-
-    // Wrap around screen tunnels
-    if (this.pacman.x < -TILE_SIZE / 2) this.pacman.x = this.canvas.width + TILE_SIZE / 2 - 2;
-    if (this.pacman.x > this.canvas.width + TILE_SIZE / 2) this.pacman.x = -TILE_SIZE / 2 + 2;
-
-    // Mouth animation
-    if (this.pacman.dirX !== 0 || this.pacman.dirY !== 0) {
-      if (this.pacman.mouthOpening) {
-        this.pacman.mouthAngle += this.pacman.mouthSpeed;
-        if (this.pacman.mouthAngle >= 0.4) this.pacman.mouthOpening = false;
+    // 3. Mouth animation
+    if (p.moving) {
+      if (p.mouthOpening) {
+        p.mouthAngle += p.mouthSpeed;
+        if (p.mouthAngle >= 0.4) p.mouthOpening = false;
       } else {
-        this.pacman.mouthAngle -= this.pacman.mouthSpeed;
-        if (this.pacman.mouthAngle <= 0.04) this.pacman.mouthOpening = true;
+        p.mouthAngle -= p.mouthSpeed;
+        if (p.mouthAngle <= 0.04) p.mouthOpening = true;
       }
     }
 
-    // Eat dots
-    const eatCol = Math.floor(this.pacman.x / TILE_SIZE);
-    const eatRow = Math.floor(this.pacman.y / TILE_SIZE);
-
+    // 4. Eat dots
+    const eatCol = Math.floor(p.x / TILE_SIZE);
+    const eatRow = Math.floor(p.y / TILE_SIZE);
     if (eatRow >= 0 && eatRow < ROWS && eatCol >= 0 && eatCol < COLS) {
       const tile = this.map[eatRow][eatCol];
       if ([2, 3, 4, 5].includes(tile)) {
@@ -444,7 +478,7 @@ class PacmanGame {
           audio.playWaka();
         } else if (tile === 5) {
           this.addScore(50);
-          this.frightenedTimer = this.frightenedDuration;
+          this.startFrightened();
           audio.playPowerPellet();
         }
 
@@ -458,110 +492,300 @@ class PacmanGame {
     }
   }
 
-  updateGhosts() {
+  // ---------------------------------------------------------------------------
+  // Ghost AI (arcade rules: scatter/chase modes, per-ghost targets, no U-turns)
+  // ---------------------------------------------------------------------------
+
+  startFrightened() {
+    this.frightenedTimer = this.frightenedDuration;
+    this.ghostCombo = 0;
     this.ghosts.forEach(ghost => {
-      if (ghost.inHouse) {
-        ghost.exitTimer--;
-        if (ghost.exitTimer <= 0) {
-          ghost.inHouse = false;
-          ghost.x = 9 * TILE_SIZE + 12;
-          ghost.y = 8 * TILE_SIZE + 12;
-          ghost.dirX = 1;
-          ghost.dirY = 0;
-        }
-        return;
-      }
-
-      const curCol = Math.floor(ghost.x / TILE_SIZE);
-      const curRow = Math.floor(ghost.y / TILE_SIZE);
-      const centerTileX = curCol * TILE_SIZE + TILE_SIZE / 2;
-      const centerTileY = curRow * TILE_SIZE + TILE_SIZE / 2;
-      const dist = Math.hypot(ghost.x - centerTileX, ghost.y - centerTileY);
-
-      const currentSpeed = this.frightenedTimer > 0 ? ghost.speed * 0.6 : ghost.speed;
-
-      if (dist <= currentSpeed) {
-        ghost.x = centerTileX;
-        ghost.y = centerTileY;
-
-        const options = [
-          { dx: 1, dy: 0 },
-          { dx: -1, dy: 0 },
-          { dx: 0, dy: 1 },
-          { dx: 0, dy: -1 }
-        ].filter(opt => {
-          // Don't 180 reverse
-          if (opt.dx === -ghost.dirX && opt.dy === -ghost.dirY) return false;
-          return this.isWalkable(curCol + opt.dx, curRow + opt.dy, true);
-        });
-
-        if (options.length > 0) {
-          if (this.frightenedTimer > 0) {
-            const pick = options[Math.floor(Math.random() * options.length)];
-            ghost.dirX = pick.dx;
-            ghost.dirY = pick.dy;
-          } else {
-            // Target pacman
-            options.sort((a, b) => {
-              const targetAx = (curCol + a.dx) * TILE_SIZE;
-              const targetAy = (curRow + a.dy) * TILE_SIZE;
-              const targetBx = (curCol + b.dx) * TILE_SIZE;
-              const targetBy = (curRow + b.dy) * TILE_SIZE;
-              const distA = Math.hypot(targetAx - this.pacman.x, targetAy - this.pacman.y);
-              const distB = Math.hypot(targetBx - this.pacman.x, targetBy - this.pacman.y);
-              return distA - distB;
-            });
-            ghost.dirX = options[0].dx;
-            ghost.dirY = options[0].dy;
-          }
-        } else if (this.isWalkable(curCol - ghost.dirX, curRow - ghost.dirY, true)) {
-          // Dead end, allow turnaround
-          ghost.dirX = -ghost.dirX;
-          ghost.dirY = -ghost.dirY;
-        }
-      }
-
-      ghost.x += ghost.dirX * currentSpeed;
-      ghost.y += ghost.dirY * currentSpeed;
-
-      // Wrap tunnel
-      if (ghost.x < -TILE_SIZE / 2) ghost.x = this.canvas.width + TILE_SIZE / 2 - 2;
-      if (ghost.x > this.canvas.width + TILE_SIZE / 2) ghost.x = -TILE_SIZE / 2 + 2;
-
-      // Collision with Pacman
-      const collisionDist = Math.hypot(ghost.x - this.pacman.x, ghost.y - this.pacman.y);
-      if (collisionDist < 15) {
-        if (this.frightenedTimer > 0) {
-          audio.playEatGhost();
-          this.addScore(200);
-          ghost.x = 9 * TILE_SIZE + 12;
-          ghost.y = 10 * TILE_SIZE + 12;
-          ghost.inHouse = true;
-          ghost.exitTimer = 180;
-        } else {
-          audio.playDeath();
-          this.lives--;
-          this.updateHUD();
-          if (this.lives <= 0) {
-            this.state = 'GAMEOVER';
-            this.showEndScreen('MERGE CONFLICT DETECTED', 'Production was halted by bugs.');
-          } else {
-            this.resetPositions();
-          }
-        }
+      if (ghost.state === 'normal' || ghost.state === 'frightened') {
+        ghost.state = 'frightened';
+        this.reverseGhost(ghost);
       }
     });
   }
 
+  reverseGhost(ghost) {
+    ghost.dirX = -ghost.dirX;
+    ghost.dirY = -ghost.dirY;
+    // Re-evaluate at the next tile centre: the way back may be a wall
+    ghost.decidedKey = -1;
+  }
+
+  advanceMode() {
+    if (this.modeIndex >= MODE_SCHEDULE.length - 1) return;
+    this.modeIndex++;
+    this.mode = MODE_SCHEDULE[this.modeIndex][0];
+    this.modeTimer = MODE_SCHEDULE[this.modeIndex][1];
+    // Mode switch forces every roaming ghost to turn around
+    this.ghosts.forEach(ghost => {
+      if (ghost.state === 'normal') this.reverseGhost(ghost);
+    });
+  }
+
+  pacmanTile() {
+    return {
+      col: Math.floor(this.pacman.x / TILE_SIZE),
+      row: Math.floor(this.pacman.y / TILE_SIZE)
+    };
+  }
+
+  ghostTile(ghost) {
+    return {
+      col: Math.floor(ghost.x / TILE_SIZE),
+      row: Math.floor(ghost.y / TILE_SIZE)
+    };
+  }
+
+  isElroy(ghost) {
+    return ghost.id === 0 && (this.totalCommits - this.commitsEaten) <= 25;
+  }
+
+  ghostTarget(ghost) {
+    if (ghost.state === 'eaten') return HOUSE_DOOR;
+
+    // Blinky in "Cruise Elroy" keeps chasing even in scatter
+    if (this.mode === 'SCATTER' && !this.isElroy(ghost)) return ghost.scatter;
+
+    const pac = this.pacmanTile();
+    const fx = this.pacman.faceX;
+    const fy = this.pacman.faceY;
+
+    switch (ghost.id) {
+      case 0: // Blinky: straight at Pac-Man
+        return pac;
+      case 1: { // Pinky: 4 tiles ahead (with the famous "up" overflow quirk)
+        const t = { col: pac.col + fx * 4, row: pac.row + fy * 4 };
+        if (fy === -1) t.col -= 4;
+        return t;
+      }
+      case 2: { // Inky: vector from Blinky through 2 tiles ahead, doubled
+        const blinky = this.ghostTile(this.ghosts[0]);
+        const mid = { col: pac.col + fx * 2, row: pac.row + fy * 2 };
+        if (fy === -1) mid.col -= 2;
+        return { col: mid.col + (mid.col - blinky.col), row: mid.row + (mid.row - blinky.row) };
+      }
+      default: { // Clyde: chase when far, retreat to corner when within 8 tiles
+        const g = this.ghostTile(ghost);
+        const d = Math.hypot(g.col - pac.col, g.row - pac.row);
+        return d > 8 ? pac : ghost.scatter;
+      }
+    }
+  }
+
+  ghostSpeed(ghost) {
+    if (ghost.state === 'eaten') return SPEED.eyes;
+    const t = this.ghostTile(ghost);
+    if (this.isTunnel(t.col, t.row)) return SPEED.tunnel;
+    if (ghost.state === 'frightened') return SPEED.frightened;
+    if (ghost.id === 0) {
+      const left = this.totalCommits - this.commitsEaten;
+      if (left <= 10) return SPEED.elroy2;
+      if (left <= 25) return SPEED.elroy1;
+    }
+    return SPEED.ghost;
+  }
+
+  chooseGhostDir(ghost, col, row) {
+    if (ghost.state === 'eaten' && col === HOUSE_DOOR.col && row === HOUSE_DOOR.row) {
+      ghost.state = 'entering';
+      ghost.dirX = 0;
+      ghost.dirY = 1;
+      return;
+    }
+
+    let options = DIRS.filter(d =>
+      !(d.dx === -ghost.dirX && d.dy === -ghost.dirY) &&
+      this.isWalkable(col + d.dx, row + d.dy)
+    );
+    if (options.length === 0) {
+      // Dead end: only then may a ghost turn around
+      options = DIRS.filter(d => this.isWalkable(col + d.dx, row + d.dy));
+      if (options.length === 0) return;
+    }
+
+    let pick = options[0];
+    if (ghost.state === 'frightened') {
+      pick = options[Math.floor(Math.random() * options.length)];
+    } else {
+      const target = this.ghostTarget(ghost);
+      let best = Infinity;
+      for (const d of options) {
+        const dist = Math.hypot(col + d.dx - target.col, row + d.dy - target.row);
+        if (dist < best) {
+          best = dist;
+          pick = d;
+        }
+      }
+    }
+    ghost.dirX = pick.dx;
+    ghost.dirY = pick.dy;
+  }
+
+  moveGhost(ghost, speed) {
+    let remaining = speed;
+    let guard = 0;
+    while (remaining > 0.0001 && guard++ < 4) {
+      const col = Math.floor(ghost.x / TILE_SIZE);
+      const row = Math.floor(ghost.y / TILE_SIZE);
+      const cx = col * TILE_SIZE + TILE_SIZE / 2;
+      const cy = row * TILE_SIZE + TILE_SIZE / 2;
+      const key = row * COLS + col;
+      const ahead = ghost.dirX !== 0 ? (cx - ghost.x) * ghost.dirX : (cy - ghost.y) * ghost.dirY;
+
+      if (ahead >= 0 && ahead <= remaining && ghost.decidedKey !== key) {
+        // Reach the tile centre this frame: snap, decide once, spend the rest of the step
+        ghost.x = cx;
+        ghost.y = cy;
+        remaining -= ahead;
+        ghost.decidedKey = key;
+        this.chooseGhostDir(ghost, col, row);
+        if (ghost.state === 'entering') return;
+        continue;
+      }
+
+      ghost.x += ghost.dirX * remaining;
+      ghost.y += ghost.dirY * remaining;
+      remaining = 0;
+    }
+    this.wrapX(ghost);
+  }
+
+  updateGhost(ghost) {
+    switch (ghost.state) {
+      case 'house': {
+        ghost.y += ghost.bobDir * SPEED.house;
+        if (ghost.y > HOUSE_Y + 5) ghost.bobDir = -1;
+        if (ghost.y < HOUSE_Y - 5) ghost.bobDir = 1;
+        ghost.dirX = 0;
+        ghost.dirY = ghost.bobDir;
+        if (ghost.exitTimer > 0) ghost.exitTimer--;
+        else ghost.state = 'exiting';
+        return;
+      }
+      case 'exiting': {
+        const dx = HOUSE_DOOR_X - ghost.x;
+        if (Math.abs(dx) > 0.5) {
+          const stepX = Math.min(SPEED.exit, Math.abs(dx));
+          ghost.x += Math.sign(dx) * stepX;
+          ghost.dirX = Math.sign(dx);
+          ghost.dirY = 0;
+        } else if (ghost.y > HOUSE_DOOR_Y) {
+          ghost.x = HOUSE_DOOR_X;
+          ghost.y = Math.max(HOUSE_DOOR_Y, ghost.y - SPEED.exit);
+          ghost.dirX = 0;
+          ghost.dirY = -1;
+        } else {
+          ghost.y = HOUSE_DOOR_Y;
+          ghost.state = this.frightenedTimer > 0 ? 'frightened' : 'normal';
+          ghost.dirX = 0;
+          ghost.dirY = -1;
+          this.chooseGhostDir(ghost, HOUSE_DOOR.col, HOUSE_DOOR.row);
+          ghost.decidedKey = HOUSE_DOOR.row * COLS + HOUSE_DOOR.col;
+        }
+        return;
+      }
+      case 'entering': {
+        ghost.dirX = 0;
+        ghost.dirY = 1;
+        ghost.y = Math.min(HOUSE_Y, ghost.y + SPEED.enter);
+        if (ghost.y >= HOUSE_Y) {
+          ghost.state = 'house';
+          ghost.exitTimer = 30;
+          ghost.bobDir = 1;
+        }
+        return;
+      }
+      default:
+        this.moveGhost(ghost, this.ghostSpeed(ghost));
+    }
+  }
+
+  checkCollisions() {
+    const p = this.pacman;
+    for (const ghost of this.ghosts) {
+      const collidable = ghost.state === 'normal' || ghost.state === 'frightened' || ghost.state === 'exiting';
+      if (!collidable) continue;
+      if (Math.abs(ghost.x - p.x) >= 12 || Math.abs(ghost.y - p.y) >= 12) continue;
+
+      const scared = ghost.state === 'frightened' || (ghost.state === 'exiting' && this.frightenedTimer > 0);
+      if (scared) {
+        const points = 200 * Math.pow(2, this.ghostCombo);
+        this.ghostCombo = Math.min(this.ghostCombo + 1, 3);
+        this.addScore(points);
+        this.updateHUD();
+        this.popups.push({ x: ghost.x, y: ghost.y, text: String(points), timer: 60 });
+        ghost.state = 'eaten';
+        ghost.decidedKey = -1;
+        if (ghost.dirX === 0 && ghost.dirY === 0) ghost.dirY = -1;
+        this.freezeTimer = 30;
+        audio.playEatGhost();
+      } else {
+        this.state = 'DYING';
+        this.deathTimer = 100;
+        this.lives--;
+        this.updateHUD();
+        audio.playDeath();
+        return;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main update (fixed 60 Hz step)
+  // ---------------------------------------------------------------------------
+
   update() {
+    if (this.state === 'DYING') {
+      this.deathTimer--;
+      if (this.deathTimer <= 0) {
+        if (this.lives <= 0) {
+          this.state = 'GAMEOVER';
+          this.showEndScreen('MERGE CONFLICT DETECTED', 'Production was halted by bugs.');
+        } else {
+          this.resetPositions();
+          this.state = 'PLAYING';
+          this.readyTimer = 60;
+        }
+      }
+      return;
+    }
+
     if (this.state !== 'PLAYING') return;
 
+    if (this.readyTimer > 0) {
+      this.readyTimer--;
+      return;
+    }
+
+    this.popups.forEach(pop => pop.timer--);
+    this.popups = this.popups.filter(pop => pop.timer > 0);
+
+    if (this.freezeTimer > 0) {
+      this.freezeTimer--;
+      return;
+    }
+
     if (this.frightenedTimer > 0) {
+      // Scatter/chase clock pauses while ghosts are frightened (arcade behaviour)
       this.frightenedTimer--;
+      if (this.frightenedTimer === 0) {
+        this.ghosts.forEach(ghost => {
+          if (ghost.state === 'frightened') ghost.state = 'normal';
+        });
+      }
+    } else if (this.modeTimer !== Infinity) {
+      this.modeTimer--;
+      if (this.modeTimer <= 0) this.advanceMode();
     }
 
     this.updatePacman();
-    this.updateGhosts();
+    if (this.state !== 'PLAYING') return;
+
+    this.ghosts.forEach(ghost => this.updateGhost(ghost));
+    this.checkCollisions();
   }
 
   addScore(pts) {
@@ -599,10 +823,34 @@ class PacmanGame {
     if (go) go.classList.remove('hidden');
   }
 
-  draw() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  // ---------------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------------
 
-    // Draw Maze
+  draw() {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    this.drawMaze();
+    this.drawPacman();
+    this.ghosts.forEach(ghost => this.drawGhost(ghost));
+    this.drawPopups();
+
+    if (this.readyTimer > 0 && this.state === 'PLAYING') {
+      ctx.save();
+      ctx.font = 'bold 14px "Press Start 2P", "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#f7b733';
+      ctx.shadowColor = '#f7b733';
+      ctx.shadowBlur = 8;
+      ctx.fillText('READY!', 9 * TILE_SIZE + TILE_SIZE / 2, 12 * TILE_SIZE + TILE_SIZE / 2 + 1);
+      ctx.restore();
+    }
+  }
+
+  drawMaze() {
+    const ctx = this.ctx;
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const tile = this.map[r][c];
@@ -610,125 +858,181 @@ class PacmanGame {
         const y = r * TILE_SIZE;
 
         if (tile === 1) {
-          this.ctx.fillStyle = '#0f1c30';
-          this.ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+          ctx.fillStyle = '#0f1c30';
+          ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
-          this.ctx.strokeStyle = '#1e3860';
-          this.ctx.lineWidth = 2;
-          this.ctx.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
+          ctx.strokeStyle = '#1e3860';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
 
-          this.ctx.strokeStyle = '#00f0ff';
-          this.ctx.lineWidth = 1;
-          this.ctx.strokeRect(x + 3, y + 3, TILE_SIZE - 6, TILE_SIZE - 6);
+          ctx.strokeStyle = '#00f0ff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 3, y + 3, TILE_SIZE - 6, TILE_SIZE - 6);
         } else if (tile === 6) {
-          this.ctx.fillStyle = '#ff007f';
-          this.ctx.fillRect(x, y + TILE_SIZE / 2 - 2, TILE_SIZE, 4);
+          ctx.fillStyle = '#ff007f';
+          ctx.fillRect(x, y + TILE_SIZE / 2 - 2, TILE_SIZE, 4);
         } else if (tile === 2) {
-          this.ctx.fillStyle = '#0e4429';
-          this.ctx.beginPath();
-          this.ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3, 0, Math.PI * 2);
-          this.ctx.fill();
+          ctx.fillStyle = '#0e4429';
+          ctx.beginPath();
+          ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3, 0, Math.PI * 2);
+          ctx.fill();
         } else if (tile === 3) {
-          this.ctx.fillStyle = '#26a641';
-          this.ctx.beginPath();
-          this.ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 4, 0, Math.PI * 2);
-          this.ctx.fill();
+          ctx.fillStyle = '#26a641';
+          ctx.beginPath();
+          ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 4, 0, Math.PI * 2);
+          ctx.fill();
         } else if (tile === 4) {
-          this.ctx.fillStyle = '#39d353';
-          this.ctx.shadowColor = '#39d353';
-          this.ctx.shadowBlur = 6;
-          this.ctx.beginPath();
-          this.ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 5, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.shadowBlur = 0;
+          ctx.fillStyle = '#39d353';
+          ctx.shadowColor = '#39d353';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
         } else if (tile === 5) {
           const pulse = (Math.sin(Date.now() / 150) + 1) / 2;
-          this.ctx.fillStyle = '#f7b733';
-          this.ctx.shadowColor = '#f7b733';
-          this.ctx.shadowBlur = 10 + pulse * 8;
-          this.ctx.beginPath();
-          this.ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 7 + pulse * 2, 0, Math.PI * 2);
-          this.ctx.fill();
-          this.ctx.shadowBlur = 0;
+          ctx.fillStyle = '#f7b733';
+          ctx.shadowColor = '#f7b733';
+          ctx.shadowBlur = 10 + pulse * 8;
+          ctx.beginPath();
+          ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 7 + pulse * 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
         }
       }
     }
-
-    // Draw Pacman
-    let rotation = 0;
-    if (this.pacman.dirX === 1) rotation = 0;
-    else if (this.pacman.dirX === -1) rotation = Math.PI;
-    else if (this.pacman.dirY === 1) rotation = Math.PI / 2;
-    else if (this.pacman.dirY === -1) rotation = -Math.PI / 2;
-
-    this.ctx.save();
-    this.ctx.translate(this.pacman.x, this.pacman.y);
-    this.ctx.rotate(rotation);
-
-    this.ctx.fillStyle = '#f7b733';
-    this.ctx.shadowColor = '#f7b733';
-    this.ctx.shadowBlur = 10;
-    this.ctx.beginPath();
-    this.ctx.arc(
-      0, 0,
-      10,
-      this.pacman.mouthAngle * Math.PI,
-      (2 - this.pacman.mouthAngle) * Math.PI
-    );
-    this.ctx.lineTo(0, 0);
-    this.ctx.fill();
-    this.ctx.restore();
-
-    // Draw Ghosts
-    this.ghosts.forEach(ghost => {
-      this.ctx.save();
-      this.ctx.translate(ghost.x, ghost.y);
-
-      let ghostColor = ghost.color;
-      if (this.frightenedTimer > 0) {
-        const flash = this.frightenedTimer < 120 && Math.floor(this.frightenedTimer / 10) % 2 === 0;
-        ghostColor = flash ? '#ffffff' : '#1e90ff';
-      }
-
-      this.ctx.fillStyle = ghostColor;
-      this.ctx.shadowColor = ghostColor;
-      this.ctx.shadowBlur = 8;
-
-      this.ctx.beginPath();
-      this.ctx.arc(0, -2, 9, Math.PI, 0, false);
-      this.ctx.lineTo(9, 8);
-      this.ctx.lineTo(5, 5);
-      this.ctx.lineTo(0, 8);
-      this.ctx.lineTo(-5, 5);
-      this.ctx.lineTo(-9, 8);
-      this.ctx.closePath();
-      this.ctx.fill();
-      this.ctx.shadowBlur = 0;
-
-      // Eyes
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.beginPath();
-      this.ctx.arc(-4, -3, 3, 0, Math.PI * 2);
-      this.ctx.arc(4, -3, 3, 0, Math.PI * 2);
-      this.ctx.fill();
-
-      // Pupils
-      this.ctx.fillStyle = '#0a0e17';
-      const pOffsetX = ghost.dirX * 1.5;
-      const pOffsetY = ghost.dirY * 1.5;
-      this.ctx.beginPath();
-      this.ctx.arc(-4 + pOffsetX, -3 + pOffsetY, 1.5, 0, Math.PI * 2);
-      this.ctx.arc(4 + pOffsetX, -3 + pOffsetY, 1.5, 0, Math.PI * 2);
-      this.ctx.fill();
-
-      this.ctx.restore();
-    });
   }
 
-  loop() {
-    this.update();
+  drawPacman() {
+    const ctx = this.ctx;
+    const p = this.pacman;
+
+    let rotation = 0;
+    if (p.faceX === 1) rotation = 0;
+    else if (p.faceX === -1) rotation = Math.PI;
+    else if (p.faceY === 1) rotation = Math.PI / 2;
+    else if (p.faceY === -1) rotation = -Math.PI / 2;
+
+    let mouth = p.mouthAngle;
+    if (this.state === 'DYING') {
+      // Death animation: mouth opens all the way round, then vanish
+      const progress = 1 - this.deathTimer / 100;
+      if (progress > 0.9) return;
+      mouth = 0.1 + Math.min(progress / 0.9, 1) * 0.9;
+      rotation = -Math.PI / 2;
+    }
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(rotation);
+    ctx.fillStyle = '#f7b733';
+    ctx.shadowColor = '#f7b733';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(0, 0, 10, mouth * Math.PI, (2 - mouth) * Math.PI);
+    ctx.lineTo(0, 0);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  drawGhost(ghost) {
+    const ctx = this.ctx;
+    const eyesOnly = ghost.state === 'eaten' || ghost.state === 'entering';
+    const scared = ghost.state === 'frightened' ||
+      ((ghost.state === 'house' || ghost.state === 'exiting') && this.frightenedTimer > 0);
+
+    ctx.save();
+    ctx.translate(ghost.x, ghost.y);
+
+    if (!eyesOnly) {
+      let bodyColor = ghost.color;
+      if (scared) {
+        const flash = this.frightenedTimer < 120 && Math.floor(this.frightenedTimer / 12) % 2 === 0;
+        bodyColor = flash ? '#f5f5f5' : '#1e3fff';
+      }
+
+      ctx.fillStyle = bodyColor;
+      ctx.shadowColor = bodyColor;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(0, -2, 9, Math.PI, 0, false);
+      ctx.lineTo(9, 8);
+      ctx.lineTo(5, 5);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(-5, 5);
+      ctx.lineTo(-9, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      if (scared) {
+        // Scared face: small eyes + zigzag mouth
+        const faceColor = bodyColor === '#f5f5f5' ? '#ff3366' : '#f5d6a0';
+        ctx.fillStyle = faceColor;
+        ctx.fillRect(-5, -4, 2, 2);
+        ctx.fillRect(3, -4, 2, 2);
+        ctx.strokeStyle = faceColor;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(-6, 3);
+        ctx.lineTo(-4, 1);
+        ctx.lineTo(-2, 3);
+        ctx.lineTo(0, 1);
+        ctx.lineTo(2, 3);
+        ctx.lineTo(4, 1);
+        ctx.lineTo(6, 3);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+    }
+
+    // Eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-4, -3, 3, 0, Math.PI * 2);
+    ctx.arc(4, -3, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils look in the travel direction
+    ctx.fillStyle = eyesOnly ? '#1e3fff' : '#0a0e17';
+    const pOffsetX = ghost.dirX * 1.5;
+    const pOffsetY = ghost.dirY * 1.5;
+    ctx.beginPath();
+    ctx.arc(-4 + pOffsetX, -3 + pOffsetY, 1.5, 0, Math.PI * 2);
+    ctx.arc(4 + pOffsetX, -3 + pOffsetY, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  drawPopups() {
+    const ctx = this.ctx;
+    if (this.popups.length === 0) return;
+    ctx.save();
+    ctx.font = 'bold 10px "Press Start 2P", "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    this.popups.forEach(pop => {
+      ctx.globalAlpha = Math.min(1, pop.timer / 20);
+      ctx.fillStyle = '#00f0ff';
+      ctx.fillText(pop.text, pop.x, pop.y - (60 - pop.timer) * 0.2);
+    });
+    ctx.restore();
+  }
+
+  loop(now) {
+    if (!this.lastTime) this.lastTime = now;
+    let delta = now - this.lastTime;
+    this.lastTime = now;
+    if (delta > 100) delta = 100; // tab was hidden: don't fast-forward
+    this.accumulator += delta;
+    while (this.accumulator >= STEP_MS) {
+      this.update();
+      this.accumulator -= STEP_MS;
+    }
     this.draw();
-    requestAnimationFrame(() => this.loop());
+    requestAnimationFrame((t) => this.loop(t));
   }
 }
 
@@ -789,5 +1093,5 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  game.loop();
+  requestAnimationFrame((t) => game.loop(t));
 });
