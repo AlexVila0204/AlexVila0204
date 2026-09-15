@@ -20,7 +20,7 @@ class RetroAudio {
     }
   }
 
-  playTone(freq, type, duration, gainVal = 0.1) {
+  playTone(freq, type, duration, gainVal = 0.08) {
     if (this.muted || !this.ctx) return;
     try {
       const osc = this.ctx.createOscillator();
@@ -40,46 +40,49 @@ class RetroAudio {
     this.init();
     const freq = this.wakaAlt ? 330 : 490;
     this.wakaAlt = !this.wakaAlt;
-    this.playTone(freq, 'triangle', 0.08, 0.06);
+    this.playTone(freq, 'triangle', 0.06, 0.05);
   }
 
   playPowerPellet() {
     this.init();
-    this.playTone(600, 'square', 0.15, 0.08);
+    this.playTone(600, 'square', 0.12, 0.08);
   }
 
   playEatGhost() {
     this.init();
     if (this.muted || !this.ctx) return;
-    [300, 450, 600, 800].forEach((freq, idx) => {
-      setTimeout(() => this.playTone(freq, 'sine', 0.09, 0.1), idx * 40);
+    [320, 480, 640, 880].forEach((freq, idx) => {
+      setTimeout(() => this.playTone(freq, 'sine', 0.08, 0.09), idx * 40);
     });
   }
 
   playDeath() {
     this.init();
     if (this.muted || !this.ctx) return;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 7; i++) {
       setTimeout(() => {
-        this.playTone(400 - i * 35, 'sawtooth', 0.1, 0.08);
-      }, i * 70);
+        this.playTone(420 - i * 45, 'sawtooth', 0.09, 0.08);
+      }, i * 65);
     }
   }
 
   playStart() {
     this.init();
     if (this.muted || !this.ctx) return;
-    const notes = [261.6, 293.7, 329.6, 392.0, 523.3];
+    const notes = [261.6, 329.6, 392.0, 523.3];
     notes.forEach((freq, idx) => {
-      setTimeout(() => this.playTone(freq, 'sine', 0.15, 0.1), idx * 100);
+      setTimeout(() => this.playTone(freq, 'sine', 0.12, 0.08), idx * 90);
     });
   }
 }
 
 const audio = new RetroAudio();
 
-// Maze layout (19 cols x 21 rows)
-// 1 = Wall, 2 = Light Commit (10pts), 3 = Medium Commit (50pts), 4 = Dark Commit (100pts), 5 = Power Pellet, 0 = Empty, 6 = Ghost Gate
+const TILE_SIZE = 24;
+const COLS = 19;
+const ROWS = 21;
+
+// 1 = Wall, 2 = Light Commit (10), 3 = Med Commit (50), 4 = Dark Commit (100), 5 = Power Pellet (50), 0 = Empty, 6 = Ghost Gate
 const INITIAL_MAP = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,5,2,2,2,2,2,2,1,1,1,2,2,2,2,2,2,5,1],
@@ -104,10 +107,6 @@ const INITIAL_MAP = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
 ];
 
-const TILE_SIZE = 24;
-const COLS = 19;
-const ROWS = 21;
-
 class PacmanGame {
   constructor(canvas) {
     this.canvas = canvas;
@@ -123,27 +122,26 @@ class PacmanGame {
     this.lives = 3;
     this.state = 'READY'; // READY, PLAYING, PAUSED, GAMEOVER, VICTORY
     this.frightenedTimer = 0;
-    this.frightenedDuration = 450; // frames (~7.5 sec)
+    this.frightenedDuration = 450;
 
     this.pacman = {
       x: 9 * TILE_SIZE + TILE_SIZE / 2,
       y: 16 * TILE_SIZE + TILE_SIZE / 2,
-      dirX: 0,
+      dirX: -1, // Start moving left immediately
       dirY: 0,
-      nextDirX: 0,
+      nextDirX: -1,
       nextDirY: 0,
       speed: 2,
       mouthAngle: 0.2,
-      mouthSpeed: 0.03,
-      mouthOpening: true,
-      rotation: 0
+      mouthSpeed: 0.04,
+      mouthOpening: true
     };
 
     this.ghosts = [
-      { name: 'Merge Conflict', color: '#ff3366', x: 9 * TILE_SIZE + 12, y: 10 * TILE_SIZE, dirX: 0, dirY: -1, speed: 1.6, inHouse: false },
-      { name: 'NullPointer', color: '#ff77aa', x: 8 * TILE_SIZE + 12, y: 10 * TILE_SIZE, dirX: 1, dirY: 0, speed: 1.5, inHouse: true, exitTimer: 60 },
-      { name: 'Memory Leak', color: '#00f0ff', x: 10 * TILE_SIZE + 12, y: 10 * TILE_SIZE, dirX: -1, dirY: 0, speed: 1.4, inHouse: true, exitTimer: 180 },
-      { name: 'Prod Bug', color: '#ff9900', x: 9 * TILE_SIZE + 12, y: 11 * TILE_SIZE, dirX: 0, dirY: 1, speed: 1.4, inHouse: true, exitTimer: 300 }
+      { name: 'Merge Conflict', color: '#ff3366', col: 9, row: 8, x: 9 * TILE_SIZE + 12, y: 8 * TILE_SIZE + 12, dirX: 1, dirY: 0, speed: 1.6, inHouse: false },
+      { name: 'NullPointer', color: '#ff77aa', col: 8, row: 10, x: 8 * TILE_SIZE + 12, y: 10 * TILE_SIZE + 12, dirX: 1, dirY: 0, speed: 1.5, inHouse: true, exitTimer: 60 },
+      { name: 'Memory Leak', color: '#00f0ff', col: 10, row: 10, x: 10 * TILE_SIZE + 12, y: 10 * TILE_SIZE + 12, dirX: -1, dirY: 0, speed: 1.4, inHouse: true, exitTimer: 160 },
+      { name: 'Prod Bug', color: '#ff9900', col: 9, row: 11, x: 9 * TILE_SIZE + 12, y: 11 * TILE_SIZE + 12, dirX: 0, dirY: 1, speed: 1.4, inHouse: true, exitTimer: 260 }
     ];
 
     this.initMap();
@@ -165,99 +163,146 @@ class PacmanGame {
   }
 
   bindEvents() {
-    window.addEventListener('keydown', (e) => {
+    const handleKey = (key) => {
       audio.init();
-      switch (e.key) {
+      switch (key) {
         case 'ArrowUp':
         case 'w':
         case 'W':
+        case 'KeyW':
           this.setDirection(0, -1);
-          e.preventDefault();
           break;
         case 'ArrowDown':
         case 's':
         case 'S':
+        case 'KeyS':
           this.setDirection(0, 1);
-          e.preventDefault();
           break;
         case 'ArrowLeft':
         case 'a':
         case 'A':
+        case 'KeyA':
           this.setDirection(-1, 0);
-          e.preventDefault();
           break;
         case 'ArrowRight':
         case 'd':
         case 'D':
+        case 'KeyD':
           this.setDirection(1, 0);
-          e.preventDefault();
           break;
         case ' ':
         case 'p':
         case 'P':
+        case 'KeyP':
           this.togglePause();
-          e.preventDefault();
           break;
       }
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+      handleKey(e.key || e.code);
+    }, { capture: true });
+
+    document.addEventListener('keydown', (e) => {
+      handleKey(e.key || e.code);
     });
 
-    // Virtual D-pad for touch devices
-    document.querySelectorAll('.d-btn').forEach(btn => {
-      btn.addEventListener('pointerdown', (e) => {
+    // Virtual D-pad
+    const addDpadListener = (el, dir) => {
+      const trigger = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         audio.init();
-        const dir = btn.getAttribute('data-dir');
         if (dir === 'up') this.setDirection(0, -1);
         if (dir === 'down') this.setDirection(0, 1);
         if (dir === 'left') this.setDirection(-1, 0);
         if (dir === 'right') this.setDirection(1, 0);
-      });
+      };
+      el.addEventListener('pointerdown', trigger);
+      el.addEventListener('click', trigger);
+    };
+
+    document.querySelectorAll('.d-btn').forEach(btn => {
+      addDpadListener(btn, btn.getAttribute('data-dir'));
     });
 
-    // Touch swipes
+    // Swipe controls
     let touchStartX = 0;
     let touchStartY = 0;
-    this.canvas.addEventListener('touchstart', (e) => {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      audio.init();
-    }, { passive: true });
-
-    this.canvas.addEventListener('touchend', (e) => {
-      const dx = e.changedTouches[0].clientX - touchStartX;
-      const dy = e.changedTouches[0].clientY - touchStartY;
-      if (Math.abs(dx) > Math.abs(dy)) {
-        if (dx > 20) this.setDirection(1, 0);
-        else if (dx < -20) this.setDirection(-1, 0);
-      } else {
-        if (dy > 20) this.setDirection(0, 1);
-        else if (dy < -20) this.setDirection(0, -1);
+    window.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches[0]) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        audio.init();
       }
     }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+          if (Math.abs(dx) > Math.abs(dy)) {
+            this.setDirection(dx > 0 ? 1 : -1, 0);
+          } else {
+            this.setDirection(0, dy > 0 ? 1 : -1);
+          }
+        }
+      }
+    }, { passive: true });
+  }
+
+  isWalkable(col, row, isGhost = false) {
+    // Tunnel wrapping columns
+    if (row === 8 || row === 10 || row === 12) {
+      if (col < 0 || col >= COLS) return true;
+    }
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
+    const tile = this.map[row][col];
+    if (tile === 1) return false;
+    if (tile === 6) return isGhost; // Ghost gate
+    return true;
   }
 
   setDirection(dx, dy) {
     if (this.state === 'READY') {
       this.startGame();
     }
+    if (this.state !== 'PLAYING') return;
+
+    // Instant reverse
+    if (dx === -this.pacman.dirX && dy === -this.pacman.dirY) {
+      this.pacman.dirX = dx;
+      this.pacman.dirY = dy;
+      this.pacman.nextDirX = dx;
+      this.pacman.nextDirY = dy;
+      return;
+    }
+
     this.pacman.nextDirX = dx;
     this.pacman.nextDirY = dy;
   }
 
   startGame() {
     this.state = 'PLAYING';
-    document.getElementById('startOverlay').classList.add('hidden');
-    document.getElementById('gameOverOverlay').classList.add('hidden');
+    const startOverlay = document.getElementById('startOverlay');
+    if (startOverlay) startOverlay.classList.add('hidden');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    if (gameOverOverlay) gameOverOverlay.classList.add('hidden');
     audio.playStart();
   }
 
   togglePause() {
+    const pauseBtn = document.getElementById('pauseBtn');
     if (this.state === 'PLAYING') {
       this.state = 'PAUSED';
-      document.getElementById('pauseBtn').textContent = '▶️ Resume';
+      if (pauseBtn) pauseBtn.textContent = '▶️ Resume';
     } else if (this.state === 'PAUSED') {
       this.state = 'PLAYING';
-      document.getElementById('pauseBtn').textContent = '⏸️ Pause';
+      if (pauseBtn) pauseBtn.textContent = '⏸️ Pause';
     }
   }
 
@@ -274,102 +319,118 @@ class PacmanGame {
   resetPositions() {
     this.pacman.x = 9 * TILE_SIZE + TILE_SIZE / 2;
     this.pacman.y = 16 * TILE_SIZE + TILE_SIZE / 2;
-    this.pacman.dirX = 0;
+    this.pacman.dirX = -1;
     this.pacman.dirY = 0;
-    this.pacman.nextDirX = 0;
+    this.pacman.nextDirX = -1;
     this.pacman.nextDirY = 0;
 
     this.ghosts[0].x = 9 * TILE_SIZE + 12;
-    this.ghosts[0].y = 8 * TILE_SIZE;
+    this.ghosts[0].y = 8 * TILE_SIZE + 12;
     this.ghosts[0].inHouse = false;
     this.ghosts[0].dirX = 1;
     this.ghosts[0].dirY = 0;
 
     this.ghosts[1].x = 8 * TILE_SIZE + 12;
-    this.ghosts[1].y = 10 * TILE_SIZE;
+    this.ghosts[1].y = 10 * TILE_SIZE + 12;
     this.ghosts[1].inHouse = true;
     this.ghosts[1].exitTimer = 60;
 
     this.ghosts[2].x = 10 * TILE_SIZE + 12;
-    this.ghosts[2].y = 10 * TILE_SIZE;
+    this.ghosts[2].y = 10 * TILE_SIZE + 12;
     this.ghosts[2].inHouse = true;
     this.ghosts[2].exitTimer = 160;
 
     this.ghosts[3].x = 9 * TILE_SIZE + 12;
-    this.ghosts[3].y = 11 * TILE_SIZE;
+    this.ghosts[3].y = 11 * TILE_SIZE + 12;
     this.ghosts[3].inHouse = true;
     this.ghosts[3].exitTimer = 260;
   }
 
-  isWall(x, y) {
-    const col = Math.floor(x / TILE_SIZE);
-    const row = Math.floor(y / TILE_SIZE);
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
-    return this.map[row][col] === 1;
-  }
+  updatePacman() {
+    const curCol = Math.floor(this.pacman.x / TILE_SIZE);
+    const curRow = Math.floor(this.pacman.y / TILE_SIZE);
+    const centerTileX = curCol * TILE_SIZE + TILE_SIZE / 2;
+    const centerTileY = curRow * TILE_SIZE + TILE_SIZE / 2;
+    const distToCenterX = Math.abs(this.pacman.x - centerTileX);
+    const distToCenterY = Math.abs(this.pacman.y - centerTileY);
 
-  canMove(x, y, dx, dy) {
-    const margin = 3;
-    const testPoints = [];
-    if (dx === 1) testPoints.push({ x: x + 10, y: y - 8 }, { x: x + 10, y: y + 8 });
-    else if (dx === -1) testPoints.push({ x: x - 10, y: y - 8 }, { x: x - 10, y: y + 8 });
-    else if (dy === 1) testPoints.push({ x: x - 8, y: y + 10 }, { x: x + 8, y: y + 10 });
-    else if (dy === -1) testPoints.push({ x: x - 8, y: y - 10 }, { x: x + 8, y: y - 10 });
-
-    return !testPoints.some(pt => this.isWall(pt.x, pt.y));
-  }
-
-  update() {
-    if (this.state !== 'PLAYING') return;
-
-    // Frightened timer countdown
-    if (this.frightenedTimer > 0) {
-      this.frightenedTimer--;
-    }
-
-    // Attempt to turn
+    // Try turning to requested direction
     if (this.pacman.nextDirX !== 0 || this.pacman.nextDirY !== 0) {
-      const tileCenterX = Math.floor(this.pacman.x / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
-      const tileCenterY = Math.floor(this.pacman.y / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
-      const dist = Math.hypot(this.pacman.x - tileCenterX, this.pacman.y - tileCenterY);
+      if (this.pacman.nextDirX !== this.pacman.dirX || this.pacman.nextDirY !== this.pacman.dirY) {
+        // Check if turn is perpendicular
+        const isTurningHorizontal = this.pacman.nextDirX !== 0 && this.pacman.dirY !== 0;
+        const isTurningVertical = this.pacman.nextDirY !== 0 && this.pacman.dirX !== 0;
 
-      if (dist < 4 && this.canMove(tileCenterX, tileCenterY, this.pacman.nextDirX, this.pacman.nextDirY)) {
-        this.pacman.x = tileCenterX;
-        this.pacman.y = tileCenterY;
-        this.pacman.dirX = this.pacman.nextDirX;
-        this.pacman.dirY = this.pacman.nextDirY;
-        this.pacman.nextDirX = 0;
-        this.pacman.nextDirY = 0;
+        if (isTurningHorizontal && distToCenterY <= 6) {
+          if (this.isWalkable(curCol + this.pacman.nextDirX, curRow)) {
+            this.pacman.y = centerTileY;
+            this.pacman.dirX = this.pacman.nextDirX;
+            this.pacman.dirY = 0;
+          }
+        } else if (isTurningVertical && distToCenterX <= 6) {
+          if (this.isWalkable(curCol, curRow + this.pacman.nextDirY)) {
+            this.pacman.x = centerTileX;
+            this.pacman.dirY = this.pacman.nextDirY;
+            this.pacman.dirX = 0;
+          }
+        } else if (this.pacman.dirX === 0 && this.pacman.dirY === 0) {
+          // Stopped against a wall: try starting in next direction
+          if (this.isWalkable(curCol + this.pacman.nextDirX, curRow + this.pacman.nextDirY)) {
+            this.pacman.dirX = this.pacman.nextDirX;
+            this.pacman.dirY = this.pacman.nextDirY;
+          }
+        }
       }
     }
 
-    // Move Pacman
-    if (this.canMove(this.pacman.x, this.pacman.y, this.pacman.dirX, this.pacman.dirY)) {
-      this.pacman.x += this.pacman.dirX * this.pacman.speed;
-      this.pacman.y += this.pacman.dirY * this.pacman.speed;
+    // Check if moving into wall
+    const nextCol = curCol + this.pacman.dirX;
+    const nextRow = curRow + this.pacman.dirY;
 
-      // Wrap around tunnel
-      if (this.pacman.x < 0) this.pacman.x = this.canvas.width;
-      if (this.pacman.x > this.canvas.width) this.pacman.x = 0;
+    if (!this.isWalkable(nextCol, nextRow)) {
+      // Approaching wall: clamp at center
+      if (this.pacman.dirX === 1 && this.pacman.x >= centerTileX) {
+        this.pacman.x = centerTileX;
+        this.pacman.dirX = 0;
+      } else if (this.pacman.dirX === -1 && this.pacman.x <= centerTileX) {
+        this.pacman.x = centerTileX;
+        this.pacman.dirX = 0;
+      } else if (this.pacman.dirY === 1 && this.pacman.y >= centerTileY) {
+        this.pacman.y = centerTileY;
+        this.pacman.dirY = 0;
+      } else if (this.pacman.dirY === -1 && this.pacman.y <= centerTileY) {
+        this.pacman.y = centerTileY;
+        this.pacman.dirY = 0;
+      }
+    }
 
-      // Animate mouth
+    // Advance
+    this.pacman.x += this.pacman.dirX * this.pacman.speed;
+    this.pacman.y += this.pacman.dirY * this.pacman.speed;
+
+    // Wrap around screen tunnels
+    if (this.pacman.x < -TILE_SIZE / 2) this.pacman.x = this.canvas.width + TILE_SIZE / 2 - 2;
+    if (this.pacman.x > this.canvas.width + TILE_SIZE / 2) this.pacman.x = -TILE_SIZE / 2 + 2;
+
+    // Mouth animation
+    if (this.pacman.dirX !== 0 || this.pacman.dirY !== 0) {
       if (this.pacman.mouthOpening) {
         this.pacman.mouthAngle += this.pacman.mouthSpeed;
         if (this.pacman.mouthAngle >= 0.4) this.pacman.mouthOpening = false;
       } else {
         this.pacman.mouthAngle -= this.pacman.mouthSpeed;
-        if (this.pacman.mouthAngle <= 0.05) this.pacman.mouthOpening = true;
+        if (this.pacman.mouthAngle <= 0.04) this.pacman.mouthOpening = true;
       }
     }
 
-    // Check eating dots
-    const curCol = Math.floor(this.pacman.x / TILE_SIZE);
-    const curRow = Math.floor(this.pacman.y / TILE_SIZE);
+    // Eat dots
+    const eatCol = Math.floor(this.pacman.x / TILE_SIZE);
+    const eatRow = Math.floor(this.pacman.y / TILE_SIZE);
 
-    if (curRow >= 0 && curRow < ROWS && curCol >= 0 && curCol < COLS) {
-      const tile = this.map[curRow][curCol];
+    if (eatRow >= 0 && eatRow < ROWS && eatCol >= 0 && eatCol < COLS) {
+      const tile = this.map[eatRow][eatCol];
       if ([2, 3, 4, 5].includes(tile)) {
-        this.map[curRow][curCol] = 0;
+        this.map[eatRow][eatCol] = 0;
         this.commitsEaten++;
 
         if (tile === 2) {
@@ -382,7 +443,6 @@ class PacmanGame {
           this.addScore(100);
           audio.playWaka();
         } else if (tile === 5) {
-          // Power Pellet
           this.addScore(50);
           this.frightenedTimer = this.frightenedDuration;
           audio.playPowerPellet();
@@ -390,83 +450,95 @@ class PacmanGame {
 
         this.updateHUD();
 
-        // Victory check
         if (this.commitsEaten >= this.totalCommits) {
           this.state = 'VICTORY';
           this.showEndScreen('🎉 ALL COMMITS SHIPPED!', 'You resolved all conflicts and deployed cleanly.');
         }
       }
     }
+  }
 
-    // Update Ghosts
+  updateGhosts() {
     this.ghosts.forEach(ghost => {
       if (ghost.inHouse) {
         ghost.exitTimer--;
         if (ghost.exitTimer <= 0) {
           ghost.inHouse = false;
           ghost.x = 9 * TILE_SIZE + 12;
-          ghost.y = 8 * TILE_SIZE;
+          ghost.y = 8 * TILE_SIZE + 12;
+          ghost.dirX = 1;
+          ghost.dirY = 0;
         }
         return;
       }
 
-      // Move ghost
-      const speed = this.frightenedTimer > 0 ? ghost.speed * 0.6 : ghost.speed;
-      ghost.x += ghost.dirX * speed;
-      ghost.y += ghost.dirY * speed;
+      const curCol = Math.floor(ghost.x / TILE_SIZE);
+      const curRow = Math.floor(ghost.y / TILE_SIZE);
+      const centerTileX = curCol * TILE_SIZE + TILE_SIZE / 2;
+      const centerTileY = curRow * TILE_SIZE + TILE_SIZE / 2;
+      const dist = Math.hypot(ghost.x - centerTileX, ghost.y - centerTileY);
 
-      // Ghost wrap tunnel
-      if (ghost.x < 0) ghost.x = this.canvas.width;
-      if (ghost.x > this.canvas.width) ghost.x = 0;
+      const currentSpeed = this.frightenedTimer > 0 ? ghost.speed * 0.6 : ghost.speed;
 
-      // Ghost path decision at tile center
-      const tileCenterX = Math.floor(ghost.x / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
-      const tileCenterY = Math.floor(ghost.y / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
-      const dist = Math.hypot(ghost.x - tileCenterX, ghost.y - tileCenterY);
+      if (dist <= currentSpeed) {
+        ghost.x = centerTileX;
+        ghost.y = centerTileY;
 
-      if (dist < 2) {
-        ghost.x = tileCenterX;
-        ghost.y = tileCenterY;
-
-        const possibleDirs = [
+        const options = [
           { dx: 1, dy: 0 },
           { dx: -1, dy: 0 },
           { dx: 0, dy: 1 },
           { dx: 0, dy: -1 }
-        ].filter(d => !(d.dx === -ghost.dirX && d.dy === -ghost.dirY) && this.canMove(tileCenterX, tileCenterY, d.dx, d.dy));
+        ].filter(opt => {
+          // Don't 180 reverse
+          if (opt.dx === -ghost.dirX && opt.dy === -ghost.dirY) return false;
+          return this.isWalkable(curCol + opt.dx, curRow + opt.dy, true);
+        });
 
-        if (possibleDirs.length > 0) {
+        if (options.length > 0) {
           if (this.frightenedTimer > 0) {
-            // Random direction away
-            const choice = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
-            ghost.dirX = choice.dx;
-            ghost.dirY = choice.dy;
+            const pick = options[Math.floor(Math.random() * options.length)];
+            ghost.dirX = pick.dx;
+            ghost.dirY = pick.dy;
           } else {
-            // Target Pacman
-            possibleDirs.sort((a, b) => {
-              const distA = Math.hypot((ghost.x + a.dx * TILE_SIZE) - this.pacman.x, (ghost.y + a.dy * TILE_SIZE) - this.pacman.y);
-              const distB = Math.hypot((ghost.x + b.dx * TILE_SIZE) - this.pacman.x, (ghost.y + b.dy * TILE_SIZE) - this.pacman.y);
+            // Target pacman
+            options.sort((a, b) => {
+              const targetAx = (curCol + a.dx) * TILE_SIZE;
+              const targetAy = (curRow + a.dy) * TILE_SIZE;
+              const targetBx = (curCol + b.dx) * TILE_SIZE;
+              const targetBy = (curRow + b.dy) * TILE_SIZE;
+              const distA = Math.hypot(targetAx - this.pacman.x, targetAy - this.pacman.y);
+              const distB = Math.hypot(targetBx - this.pacman.x, targetBy - this.pacman.y);
               return distA - distB;
             });
-            ghost.dirX = possibleDirs[0].dx;
-            ghost.dirY = possibleDirs[0].dy;
+            ghost.dirX = options[0].dx;
+            ghost.dirY = options[0].dy;
           }
+        } else if (this.isWalkable(curCol - ghost.dirX, curRow - ghost.dirY, true)) {
+          // Dead end, allow turnaround
+          ghost.dirX = -ghost.dirX;
+          ghost.dirY = -ghost.dirY;
         }
       }
 
+      ghost.x += ghost.dirX * currentSpeed;
+      ghost.y += ghost.dirY * currentSpeed;
+
+      // Wrap tunnel
+      if (ghost.x < -TILE_SIZE / 2) ghost.x = this.canvas.width + TILE_SIZE / 2 - 2;
+      if (ghost.x > this.canvas.width + TILE_SIZE / 2) ghost.x = -TILE_SIZE / 2 + 2;
+
       // Collision with Pacman
       const collisionDist = Math.hypot(ghost.x - this.pacman.x, ghost.y - this.pacman.y);
-      if (collisionDist < 14) {
+      if (collisionDist < 15) {
         if (this.frightenedTimer > 0) {
-          // Eat ghost!
           audio.playEatGhost();
           this.addScore(200);
           ghost.x = 9 * TILE_SIZE + 12;
-          ghost.y = 10 * TILE_SIZE;
+          ghost.y = 10 * TILE_SIZE + 12;
           ghost.inHouse = true;
           ghost.exitTimer = 180;
         } else {
-          // Pacman death
           audio.playDeath();
           this.lives--;
           this.updateHUD();
@@ -481,6 +553,17 @@ class PacmanGame {
     });
   }
 
+  update() {
+    if (this.state !== 'PLAYING') return;
+
+    if (this.frightenedTimer > 0) {
+      this.frightenedTimer--;
+    }
+
+    this.updatePacman();
+    this.updateGhosts();
+  }
+
   addScore(pts) {
     this.score += pts;
     if (this.score > this.highScore) {
@@ -490,11 +573,15 @@ class PacmanGame {
   }
 
   updateHUD() {
-    document.getElementById('score1Up').textContent = this.score.toString().padStart(5, '0');
-    document.getElementById('scoreHigh').textContent = this.highScore.toString().padStart(5, '0');
-    document.getElementById('scoreCommits').textContent = `${this.commitsEaten}/${this.totalCommits}`;
+    const s1 = document.getElementById('score1Up');
+    if (s1) s1.textContent = this.score.toString().padStart(5, '0');
 
-    // Lives display
+    const sh = document.getElementById('scoreHigh');
+    if (sh) sh.textContent = this.highScore.toString().padStart(5, '0');
+
+    const sc = document.getElementById('scoreCommits');
+    if (sc) sc.textContent = `${this.commitsEaten}/${this.totalCommits}`;
+
     const livesContainer = document.getElementById('livesDisplay');
     if (livesContainer) {
       livesContainer.innerHTML = '🟡 '.repeat(Math.max(0, this.lives));
@@ -502,9 +589,12 @@ class PacmanGame {
   }
 
   showEndScreen(title, subtitle) {
-    document.getElementById('endTitle').textContent = title;
-    document.getElementById('endSubtitle').textContent = subtitle;
-    document.getElementById('gameOverOverlay').classList.remove('hidden');
+    const et = document.getElementById('endTitle');
+    if (et) et.textContent = title;
+    const es = document.getElementById('endSubtitle');
+    if (es) es.textContent = subtitle;
+    const go = document.getElementById('gameOverOverlay');
+    if (go) go.classList.remove('hidden');
   }
 
   draw() {
@@ -518,7 +608,6 @@ class PacmanGame {
         const y = r * TILE_SIZE;
 
         if (tile === 1) {
-          // Neon retro wall
           this.ctx.fillStyle = '#0f1c30';
           this.ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
@@ -530,23 +619,19 @@ class PacmanGame {
           this.ctx.lineWidth = 1;
           this.ctx.strokeRect(x + 3, y + 3, TILE_SIZE - 6, TILE_SIZE - 6);
         } else if (tile === 6) {
-          // Ghost gate
           this.ctx.fillStyle = '#ff007f';
           this.ctx.fillRect(x, y + TILE_SIZE / 2 - 2, TILE_SIZE, 4);
         } else if (tile === 2) {
-          // Light commit dot (GitHub level 1)
           this.ctx.fillStyle = '#0e4429';
           this.ctx.beginPath();
           this.ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3, 0, Math.PI * 2);
           this.ctx.fill();
         } else if (tile === 3) {
-          // Medium commit dot (GitHub level 2)
           this.ctx.fillStyle = '#26a641';
           this.ctx.beginPath();
           this.ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 4, 0, Math.PI * 2);
           this.ctx.fill();
         } else if (tile === 4) {
-          // Dark green commit dot (GitHub level 3)
           this.ctx.fillStyle = '#39d353';
           this.ctx.shadowColor = '#39d353';
           this.ctx.shadowBlur = 6;
@@ -555,7 +640,6 @@ class PacmanGame {
           this.ctx.fill();
           this.ctx.shadowBlur = 0;
         } else if (tile === 5) {
-          // Power Pellet (Octocat pill / Gold star pulse)
           const pulse = (Math.sin(Date.now() / 150) + 1) / 2;
           this.ctx.fillStyle = '#f7b733';
           this.ctx.shadowColor = '#f7b733';
@@ -600,7 +684,6 @@ class PacmanGame {
 
       let ghostColor = ghost.color;
       if (this.frightenedTimer > 0) {
-        // Flashing blue/white
         const flash = this.frightenedTimer < 120 && Math.floor(this.frightenedTimer / 10) % 2 === 0;
         ghostColor = flash ? '#ffffff' : '#1e90ff';
       }
@@ -609,10 +692,8 @@ class PacmanGame {
       this.ctx.shadowColor = ghostColor;
       this.ctx.shadowBlur = 8;
 
-      // Head
       this.ctx.beginPath();
       this.ctx.arc(0, -2, 9, Math.PI, 0, false);
-      // Body & Tentacles
       this.ctx.lineTo(9, 8);
       this.ctx.lineTo(5, 5);
       this.ctx.lineTo(0, 8);
@@ -653,24 +734,46 @@ window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('gameCanvas');
   const game = new PacmanGame(canvas);
 
-  document.getElementById('startBtn').addEventListener('click', () => {
-    audio.init();
-    game.startGame();
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn) {
+    startBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      startBtn.blur();
+      canvas.focus();
+      audio.init();
+      game.startGame();
+    });
+  }
+
+  canvas.addEventListener('click', () => {
+    canvas.focus();
   });
 
-  document.getElementById('restartBtn').addEventListener('click', () => {
-    audio.init();
-    game.restart();
-  });
+  const restartBtn = document.getElementById('restartBtn');
+  if (restartBtn) {
+    restartBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      audio.init();
+      game.restart();
+    });
+  }
 
-  document.getElementById('pauseBtn').addEventListener('click', () => {
-    game.togglePause();
-  });
+  const pauseBtn = document.getElementById('pauseBtn');
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      game.togglePause();
+    });
+  }
 
-  document.getElementById('muteBtn').addEventListener('click', () => {
-    audio.muted = !audio.muted;
-    document.getElementById('muteBtn').textContent = audio.muted ? '🔇 Unmute' : '🔊 Sound';
-  });
+  const muteBtn = document.getElementById('muteBtn');
+  if (muteBtn) {
+    muteBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      audio.muted = !audio.muted;
+      muteBtn.textContent = audio.muted ? '🔇 Unmute' : '🔊 Sound';
+    });
+  }
 
   game.loop();
 });
