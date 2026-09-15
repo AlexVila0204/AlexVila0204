@@ -56,7 +56,7 @@ I build mission-critical systems for the financial sector: payment terminals, el
 
 <p align="center">
   <a href="https://alexvila0204.github.io/AlexVila0204/">
-    <img src="https://img.shields.io/badge/🎮_INSERT_COIN-PLAY_PAC--MAN_ARCADE-F7B733?style=for-the-badge&logo=ghostscript&logoColor=000&labelColor=141f33" alt="Play Pac-Man" />
+    <img src="https://img.shields.io/badge/INSERT_COIN-PLAY_PAC--MAN_ARCADE-F7B733?style=for-the-badge&logo=ghostscript&logoColor=F7B733&labelColor=141f33" alt="Play Pac-Man" />
   </a>
   <a href="https://alexvila0204.github.io/AlexVila0204/">
     <img src="https://img.shields.io/badge/HIGH_SCORE-12,040_COMMITS-00f0ff?style=for-the-badge&logo=github&logoColor=white&labelColor=141f33" alt="High Score" />

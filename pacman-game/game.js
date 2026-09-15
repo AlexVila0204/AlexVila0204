@@ -296,13 +296,13 @@ class PacmanGame {
   }
 
   togglePause() {
-    const pauseBtn = document.getElementById('pauseBtn');
+    const pauseLabel = document.getElementById('pauseLabel');
     if (this.state === 'PLAYING') {
       this.state = 'PAUSED';
-      if (pauseBtn) pauseBtn.textContent = '▶️ Resume';
+      if (pauseLabel) pauseLabel.textContent = 'Resume';
     } else if (this.state === 'PAUSED') {
       this.state = 'PLAYING';
-      if (pauseBtn) pauseBtn.textContent = '⏸️ Pause';
+      if (pauseLabel) pauseLabel.textContent = 'Pause';
     }
   }
 
@@ -452,7 +452,7 @@ class PacmanGame {
 
         if (this.commitsEaten >= this.totalCommits) {
           this.state = 'VICTORY';
-          this.showEndScreen('🎉 ALL COMMITS SHIPPED!', 'You resolved all conflicts and deployed cleanly.');
+          this.showEndScreen('ALL COMMITS SHIPPED', 'You resolved all conflicts and deployed cleanly.');
         }
       }
     }
@@ -544,7 +544,7 @@ class PacmanGame {
           this.updateHUD();
           if (this.lives <= 0) {
             this.state = 'GAMEOVER';
-            this.showEndScreen('💀 MERGE CONFLICT DETECTED', 'Production was halted by bugs.');
+            this.showEndScreen('MERGE CONFLICT DETECTED', 'Production was halted by bugs.');
           } else {
             this.resetPositions();
           }
@@ -584,7 +584,9 @@ class PacmanGame {
 
     const livesContainer = document.getElementById('livesDisplay');
     if (livesContainer) {
-      livesContainer.innerHTML = '🟡 '.repeat(Math.max(0, this.lives));
+      livesContainer.innerHTML = Array.from({ length: Math.max(0, this.lives) })
+        .map(() => '<svg class="life-icon" viewBox="0 0 20 20" width="15" height="15"><path d="M10 0 A10 10 0 1 0 20 10 L10 10 Z" fill="#f7b733"/></svg>')
+        .join('');
     }
   }
 
@@ -771,7 +773,19 @@ window.addEventListener('DOMContentLoaded', () => {
     muteBtn.addEventListener('click', (e) => {
       e.preventDefault();
       audio.muted = !audio.muted;
-      muteBtn.textContent = audio.muted ? '🔇 Unmute' : '🔊 Sound';
+      const muteIcon = document.getElementById('muteIcon');
+      const muteLabel = document.getElementById('muteLabel');
+      if (audio.muted) {
+        if (muteIcon) {
+          muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
+        }
+        if (muteLabel) muteLabel.textContent = 'Muted';
+      } else {
+        if (muteIcon) {
+          muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+        }
+        if (muteLabel) muteLabel.textContent = 'Sound';
+      }
     });
   }
 

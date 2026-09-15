@@ -297,6 +297,9 @@ canvas#gameCanvas {
   cursor: pointer;
   font-size: 12px;
   font-family: 'Outfit', sans-serif;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition: all 0.2s;
 }
 
@@ -304,6 +307,35 @@ canvas#gameCanvas {
   color: #fff;
   border-color: var(--neon-blue);
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+.btn-icon svg {
+  display: block;
+}
+
+.pixel-ghost {
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.ghost-tag:hover .pixel-ghost {
+  transform: translateY(-3px) scale(1.1);
+}
+
+.marquee-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.lives-container {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.life-icon {
+  display: block;
+  filter: drop-shadow(0 0 4px rgba(247, 183, 51, 0.8));
 }
 
 /* Mobile Virtual D-Pad */

@@ -6,7 +6,6 @@
   <title>AlexVila · GitHub Arcade Pac-Man</title>
   <meta name="description" content="Playable retro GitHub Pac-Man arcade game. Eat commits, avoid merge conflicts, and set the high score!" />
   <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹️</text></svg>" />
 </head>
 <body>
 
@@ -14,7 +13,11 @@
     <!-- Header Marquee -->
     <header class="arcade-header">
       <div class="marquee-title">
-        <span>👾</span> GITHUB ARCADE · PAC-MAN
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="marquee-icon">
+          <path d="M12 2a10 10 0 1 0 8.66 15L12 12Z" fill="#f7b733"/>
+          <circle cx="12" cy="7" r="1.5" fill="#0b0f19"/>
+        </svg>
+        <span>GITHUB ARCADE · PAC-MAN</span>
       </div>
       <div class="profile-tag">
         BY <a href="https://github.com/AlexVila0204" target="_blank" rel="noopener">@AlexVila0204</a>
@@ -51,20 +54,51 @@
         </p>
 
         <div class="ghost-legend">
+          <!-- Red Ghost: Conflict -->
           <div class="ghost-tag">
-            <span style="color: #ff3366;">🔴</span>
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#ff3366" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
             <span class="name" style="color: #ff3366;">Conflict</span>
           </div>
+
+          <!-- Pink Ghost: NullPtr -->
           <div class="ghost-tag">
-            <span style="color: #ff77aa;">🌸</span>
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#ff77aa" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
             <span class="name" style="color: #ff77aa;">NullPtr</span>
           </div>
+
+          <!-- Cyan Ghost: MemLeak -->
           <div class="ghost-tag">
-            <span style="color: #00f0ff;">💠</span>
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#00f0ff" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
             <span class="name" style="color: #00f0ff;">MemLeak</span>
           </div>
+
+          <!-- Orange Ghost: ProdBug -->
           <div class="ghost-tag">
-            <span style="color: #ff9900;">⚡</span>
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#ff9900" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
             <span class="name" style="color: #ff9900;">ProdBug</span>
           </div>
         </div>
@@ -95,12 +129,24 @@
         <span class="key-badge">W A S D</span>
         <span>or</span>
         <span class="key-badge">Arrows</span>
-        <span>Lives:</span>
-        <span id="livesDisplay">🟡 🟡 🟡</span>
+        <span class="lives-label">Lives:</span>
+        <div id="livesDisplay" class="lives-container"></div>
       </div>
       <div class="action-buttons">
-        <button class="btn-icon" id="pauseBtn">⏸️ Pause</button>
-        <button class="btn-icon" id="muteBtn">🔊 Sound</button>
+        <button class="btn-icon" id="pauseBtn">
+          <svg class="icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+            <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+          </svg>
+          <span id="pauseLabel">Pause</span>
+        </button>
+        <button class="btn-icon" id="muteBtn">
+          <svg class="icon-svg" id="muteIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <span id="muteLabel">Sound</span>
+        </button>
       </div>
     </footer>
   </div>
