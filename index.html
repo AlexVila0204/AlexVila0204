@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AlexVila · GitHub Arcade Pac-Man</title>
+  <meta name="description" content="Playable retro GitHub Pac-Man arcade game. Eat commits, avoid merge conflicts, and set the high score!" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="arcade-cabinet">
+    <!-- Header Marquee -->
+    <header class="arcade-header">
+      <div class="marquee-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="marquee-icon">
+          <path d="M12 2a10 10 0 1 0 8.66 15L12 12Z" fill="#f7b733"/>
+          <circle cx="12" cy="7" r="1.5" fill="#0b0f19"/>
+        </svg>
+        <span>GITHUB ARCADE · PAC-MAN</span>
+      </div>
+      <div class="profile-tag">
+        BY <a href="https://github.com/AlexVila0204" target="_blank" rel="noopener">@AlexVila0204</a>
+      </div>
+    </header>
+
+    <!-- Scoreboard HUD -->
+    <div class="scoreboard">
+      <div class="score-item">
+        <span class="score-label score-1up">1UP SCORE</span>
+        <span class="score-value" id="score1Up">00000</span>
+      </div>
+      <div class="score-item">
+        <span class="score-label score-high">HIGH SCORE</span>
+        <span class="score-value" id="scoreHigh">12040</span>
+      </div>
+      <div class="score-item">
+        <span class="score-label score-commits">COMMITS</span>
+        <span class="score-value" id="scoreCommits">0/0</span>
+      </div>
+    </div>
+
+    <!-- Screen / Canvas Container -->
+    <div class="arcade-main">
+    <div class="screen-container">
+      <canvas id="gameCanvas" tabindex="0"></canvas>
+      <div class="scanlines"></div>
+
+      <!-- Start Overlay -->
+      <div class="game-overlay" id="startOverlay">
+        <h1 class="overlay-title">INSERT COIN</h1>
+        <p class="overlay-subtitle">
+          Eat green commits and Octocat pellets.<br />
+          Watch out for Merge Conflicts and Production Bugs!
+        </p>
+
+        <div class="ghost-legend">
+          <!-- Red Ghost: Conflict -->
+          <div class="ghost-tag">
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#ff3366" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
+            <span class="name" style="color: #ff3366;">Conflict</span>
+          </div>
+
+          <!-- Pink Ghost: NullPtr -->
+          <div class="ghost-tag">
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#ff77aa" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
+            <span class="name" style="color: #ff77aa;">NullPtr</span>
+          </div>
+
+          <!-- Cyan Ghost: MemLeak -->
+          <div class="ghost-tag">
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#00f0ff" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
+            <span class="name" style="color: #00f0ff;">MemLeak</span>
+          </div>
+
+          <!-- Orange Ghost: ProdBug -->
+          <div class="ghost-tag">
+            <svg class="pixel-ghost" viewBox="0 0 14 14" width="28" height="28" shape-rendering="crispEdges">
+              <path fill="#ff9900" d="M4 1h6v1H3v1H2v2H1v6h1v-1h1v1h1v-1h2v1h2v-1h2v1h1v-1h1v1h1V5h-1V3h-1V2h-1V1H4z"/>
+              <rect x="3" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="8" y="4" width="3" height="4" fill="#ffffff"/>
+              <rect x="4" y="5" width="2" height="2" fill="#002288"/>
+              <rect x="9" y="5" width="2" height="2" fill="#002288"/>
+            </svg>
+            <span class="name" style="color: #ff9900;">ProdBug</span>
+          </div>
+        </div>
+
+        <button class="btn-arcade" id="startBtn">START GAME</button>
+      </div>
+
+      <!-- Game Over / Victory Overlay -->
+      <div class="game-overlay hidden" id="gameOverOverlay">
+        <h2 class="overlay-title" id="endTitle">GAME OVER</h2>
+        <p class="overlay-subtitle" id="endSubtitle">Your commits were consumed by production bugs.</p>
+        <p class="final-score">SCORE <span id="finalScore">00000</span></p>
+        <p class="final-rank" id="finalRank"></p>
+        <div class="overlay-actions">
+          <a class="btn-arcade btn-submit" id="submitBtn" href="#" target="_blank" rel="noopener">SUBMIT SCORE</a>
+          <button class="btn-arcade btn-secondary" id="restartBtn">TRY AGAIN</button>
+        </div>
+        <p class="submit-hint">Submitting opens a pre-filled GitHub issue carrying your run replay. A bot re-plays it with the game engine, verifies the score and puts your avatar on the board.</p>
+      </div>
+    </div>
+
+    <!-- Global leaderboard (fed by leaderboard.json, updated by GitHub Actions) -->
+    <aside class="leaderboard-panel" id="leaderboardPanel">
+      <div class="lb-header">
+        <span class="lb-title">TOP HACKERS</span>
+        <span class="lb-sub">global ranking</span>
+      </div>
+      <ol class="lb-list" id="leaderboardList">
+        <li class="lb-empty">Loading…</li>
+      </ol>
+      <p class="lb-hint">Finish a run and hit <b>SUBMIT SCORE</b> to claim a seat with your GitHub account.</p>
+    </aside>
+    </div>
+
+    <!-- Mobile Virtual D-Pad -->
+    <div class="d-pad-container">
+      <button class="d-btn d-up" data-dir="up">▲</button>
+      <button class="d-btn d-left" data-dir="left">◀</button>
+      <button class="d-btn d-right" data-dir="right">▶</button>
+      <button class="d-btn d-down" data-dir="down">▼</button>
+    </div>
+
+    <!-- Footer & Controls -->
+    <footer class="arcade-footer">
+      <div class="controls-hint">
+        <span>Controls:</span>
+        <span class="key-badge">W A S D</span>
+        <span>or</span>
+        <span class="key-badge">Arrows</span>
+        <span class="lives-label">Lives:</span>
+        <div id="livesDisplay" class="lives-container"></div>
+      </div>
+      <div class="action-buttons">
+        <button class="btn-icon" id="pauseBtn">
+          <svg class="icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+            <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+          </svg>
+          <span id="pauseLabel">Pause</span>
+        </button>
+        <button class="btn-icon" id="muteBtn">
+          <svg class="icon-svg" id="muteIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+          <span id="muteLabel">Sound</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
