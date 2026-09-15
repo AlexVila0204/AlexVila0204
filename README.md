@@ -1,73 +1,54 @@
-<h1 align="center">Hi 👋, I'm Alberth Godoy</h1>
+<h1 align="center">Alberth Godoy · <code>@AlexVila0204</code></h1>
 
-<p align="left">
-  <img src="https://komarev.com/ghpvc/?username=alexvila0204&label=Profile%20views&color=0e75b6&style=flat" alt="alexvila0204" />
+<p align="center">
+  <b>Computer Systems Engineer</b> · Software Developer @ Red Abierta<br/>
+  Payments (EMV · DUKPT · ISO 8583) · E-invoicing · AI agents on AWS Bedrock
 </p>
 
-<p align="left">
-  <a href="https://github.com/ryo-ma/github-profile-trophy">
-    <img src="https://github-profile-trophy.vercel.app/?username=alexvila0204" alt="alexvila0204" />
+<p align="center">
+  <a href="https://alexvila.me"><img src="https://img.shields.io/badge/alexvila.me-000?style=for-the-badge&logo=vercel&logoColor=white" /></a>
+  <a href="https://linkedin.com/in/alberth-godoy"><img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" /></a>
+  <a href="mailto:alberthgodoy.2002@gmail.com"><img src="https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" /></a>
+</p>
+
+---
+
+## About me
+
+I build mission-critical systems for the financial sector: payment terminals, electronic invoicing platforms and AI assistants. I like end-to-end work — from framing bytes on a raw TCP socket to shipping a release pipeline to TestFlight.
+
+- **Payments** — in-house ISO 8583 implementation (single & dual message, reversals, batch settlement), DUKPT PIN encryption, EMV/NFC card reading on Sunmi terminals
+- **E-invoicing** — DTE issuance against El Salvador's Ministry of Finance; built iOS support from scratch for a React Native app
+- **AI** — conversational agent with tool-calling, RAG and guardrails on AWS Bedrock, plus a streaming (SSE) metrics dashboard
+- **Freelance** — Minecraft plugins (Paper/Spigot/Velocity) and server administration since 2023
+
+---
+
+## Featured work
+
+| Project | What it does | Stack |
+|---|---|---|
+| **POS360** | Smart POS app with EMV/NFC/magstripe reading, DUKPT and ISO 8583 messaging against the acquirer host. Handles automatic reversals (0400), heartbeat (0800) and batch close (0500). | React Native · TypeScript · Sunmi SDK |
+| **Facturito + Radar** | Conversational assistant for e-invoicing with RAG and guardrails, plus a board of user-defined business signals generated in real time. | AWS Bedrock · NestJS · SSE |
+| **Factured SV (iOS)** | Full iOS support for an Android-only app: Xcode project from zero, UI/UX redesign following the HIG, automated releases with fastlane. | React Native · Xcode · fastlane |
+
+> These projects are closed-source. Screenshots and technical details are on [alexvila.me](https://alexvila.me).
+
+---
+
+## Stack
+
+<p align="center">
+  <a href="https://skillicons.dev">
+    <img src="https://skillicons.dev/icons?i=go,ts,rust,java,py,swift,nestjs,nodejs,react,apple,aws,postgres,mongodb,docker,linux,git&perline=8" />
   </a>
 </p>
 
 ---
 
-💻 **Backend Developer** passionate about building scalable systems and APIs.  
-🎨 I also enjoy working with lightweight frontend stacks for complete project delivery.  
+## Activity
 
-- 🔭 Currently working on **a chatbot project for Marketing Total**
-- 🌱 Currently learning **Go (Golang)**
-- ☁️ Experienced with **AWS**, **Azure**, and **Dockerized** deployments
-- 🧪 I enjoy experimenting with cloud, RESTful API design, and microservices
-
----
-
-### 🧰 Tech Stack
-
-#### 🖥️ Backend
-- **Languages:** Java · Python · C++
-- **Frameworks:** Spring Boot (3.4) · Django REST Framework
-- **Tools:** Docker · Postman · AWS · Azure
-
-#### 🎨 Frontend (Light)
-- HTML · CSS · JavaScript · TypeScript · Vite
-
----
-
-### 📫 Connect with me:
-<p align="left">
-  <a href="https://fb.com/alberth godoy" target="blank">
-    <img align="center" src="https://raw.githubusercontent.com/rahuldkjain/github-profile-readme-generator/master/src/images/icons/Social/facebook.svg" alt="alberth godoy" height="30" width="40" />
-  </a>
+<p align="center">
+  <img src="https://github-readme-stats.vercel.app/api?username=AlexVila0204&show_icons=true&theme=tokyonight&hide_border=true&count_private=true" height="165" />
+  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=AlexVila0204&layout=compact&theme=tokyonight&hide_border=true" height="165" />
 </p>
-
----
-
-### 🛠️ Languages and Tools:
-
-<p align="left">
-  <a href="https://aws.amazon.com" target="_blank"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/amazonwebservices/amazonwebservices-original-wordmark.svg" alt="aws" width="40" height="40"/> </a>
-  <a href="https://azure.microsoft.com/en-in/" target="_blank"> <img src="https://www.vectorlogo.zone/logos/microsoft_azure/microsoft_azure-icon.svg" alt="azure" width="40" height="40"/> </a>
-  <a href="https://www.djangoproject.com/" target="_blank"> <img src="https://cdn.worldvectorlogo.com/logos/django.svg" alt="django" width="40" height="40"/> </a>
-  <a href="https://spring.io/projects/spring-boot" target="_blank"> <img src="https://www.vectorlogo.zone/logos/springio/springio-icon.svg" alt="springboot" width="40" height="40"/> </a>
-  <a href="https://www.docker.com/" target="_blank"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/docker/docker-original-wordmark.svg" alt="docker" width="40" height="40"/> </a>
-  <a href="https://www.w3.org/html/" target="_blank"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/html5/html5-original-wordmark.svg" alt="html5" width="40" height="40"/> </a>
-  <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/javascript/javascript-original.svg" alt="javascript" width="40" height="40"/> </a>
-  <a href="https://www.typescriptlang.org/" target="_blank"> <img src="https://raw.githubusercontent.com/devicons/devicon/master/icons/typescript/typescript-original.svg" alt="typescript" width="40" height="40"/> </a>
-  <a href="https://vitejs.dev/" target="_blank"> <img src="https://vitejs.dev/logo.svg" alt="vite" width="40" height="40"/> </a>
-  <a href="https://git-scm.com/" target="_blank"> <img src="https://www.vectorlogo.zone/logos/git-scm/git-scm-icon.svg" alt="git" width="40" height="40"/> </a>
-  <a href="https://www.postman.com/" target="_blank"> <img src="https://www.vectorlogo.zone/logos/getpostman/getpostman-icon.svg" alt="postman" width="40" height="40"/> </a>
-  <a href="https://ubuntu.com/" target="_blank"> <img src="https://www.vectorlogo.zone/logos/ubuntu/ubuntu-icon.svg" alt="linux" width="40" height="40"/> </a>
-</p>
-
----
-
-### 📊 GitHub Stats
-<p align="left">
-  <img src="https://github-readme-stats.vercel.app/api?username=alexvila0204&show_icons=true&theme=tokyonight" alt="alexvila0204 stats" />
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=alexvila0204&layout=compact&theme=tokyonight" alt="alexvila0204 languages" />
-</p>
-
----
-
-_“Code is like humor. When you have to explain it, it’s bad.” – Cory House_
