@@ -80,12 +80,13 @@ jobs:
             if (!verified || !Number.isInteger(score) || score <= 0) {
               await label('pacman-score');
               await label('rejected');
+              core.info(`Rejected: ${reason}`);
               await say([
-                `👾 Sorry @${user}, the replay in this issue does not reproduce the claimed score, so it was not recorded.`,
+                `👾 Nice try, @${user}.`,
                 '',
-                `Verifier said: \`${reason}\``,
+                `Dude, it's a Pac-Man game on a README. Don't cheat, just play. 🕹️`,
                 '',
-                `Scores are only accepted from the **SUBMIT SCORE** button at the end of a run at ${GAME_URL}, with the hidden replay block untouched.`
+                `Go earn it at ${GAME_URL} and hit **SUBMIT SCORE** when the run ends. I'll be watching.`
               ].join('\n'));
               await close('not_planned');
               return;
