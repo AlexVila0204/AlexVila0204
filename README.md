@@ -1,8 +1,7 @@
-<h1 align="center">Alberth Godoy · <code>@AlexVila0204</code></h1>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0f2027,50:203a43,100:2c5364&height=180&section=header&text=Alberth%20Godoy&fontSize=52&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Computer%20Systems%20Engineer%20%C2%B7%20Software%20Developer%20%40%20Red%20Abierta&descAlignY=60&descSize=18" width="100%" />
 
 <p align="center">
-  <b>Computer Systems Engineer</b> · Software Developer @ Red Abierta<br/>
-  Payments (EMV · DUKPT · ISO 8583) · E-invoicing · AI agents on AWS Bedrock
+  <a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=20&pause=1000&color=F7B733&center=true&vCenter=true&width=640&lines=Payments+%C2%B7+EMV+%C2%B7+DUKPT+%C2%B7+ISO+8583;E-invoicing+against+El+Salvador's+Ministry+of+Finance;AI+agents+on+AWS+Bedrock;Minecraft+plugins+%C2%B7+Paper+%2F+Spigot+%2F+Velocity" alt="Typing SVG" /></a>
 </p>
 
 <p align="center">
@@ -49,6 +48,13 @@ I build mission-critical systems for the financial sector: payment terminals, el
 ## Activity
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/output/snake-dark.svg" />
-  <img alt="Contribution snake" src="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/output/snake.svg" width="100%" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/output/pacman-contribution-graph-dark.svg" />
+  <img alt="Pac-Man contribution graph" src="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/output/pacman-contribution-graph.svg" width="100%" />
 </picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/main/profile-3d-contrib/profile-night-rainbow.svg" />
+  <img alt="3D contribution graph" src="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/main/profile-3d-contrib/profile-green-animate.svg" width="100%" />
+</picture>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:2c5364,50:203a43,100:0f2027&height=100&section=footer" width="100%" />
