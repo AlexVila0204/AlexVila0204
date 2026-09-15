@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AlexVila · GitHub Arcade Pac-Man</title>
+  <meta name="description" content="Playable retro GitHub Pac-Man arcade game. Eat commits, avoid merge conflicts, and set the high score!" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹️</text></svg>" />
+</head>
+<body>
+
+  <div class="arcade-cabinet">
+    <!-- Header Marquee -->
+    <header class="arcade-header">
+      <div class="marquee-title">
+        <span>👾</span> GITHUB ARCADE · PAC-MAN
+      </div>
+      <div class="profile-tag">
+        BY <a href="https://github.com/AlexVila0204" target="_blank" rel="noopener">@AlexVila0204</a>
+      </div>
+    </header>
+
+    <!-- Scoreboard HUD -->
+    <div class="scoreboard">
+      <div class="score-item">
+        <span class="score-label score-1up">1UP SCORE</span>
+        <span class="score-value" id="score1Up">00000</span>
+      </div>
+      <div class="score-item">
+        <span class="score-label score-high">HIGH SCORE</span>
+        <span class="score-value" id="scoreHigh">12040</span>
+      </div>
+      <div class="score-item">
+        <span class="score-label score-commits">COMMITS</span>
+        <span class="score-value" id="scoreCommits">0/0</span>
+      </div>
+    </div>
+
+    <!-- Screen / Canvas Container -->
+    <div class="screen-container">
+      <canvas id="gameCanvas"></canvas>
+      <div class="scanlines"></div>
+
+      <!-- Start Overlay -->
+      <div class="game-overlay" id="startOverlay">
+        <h1 class="overlay-title">INSERT COIN</h1>
+        <p class="overlay-subtitle">
+          Eat green commits and Octocat pellets.<br />
+          Watch out for Merge Conflicts and Production Bugs!
+        </p>
+
+        <div class="ghost-legend">
+          <div class="ghost-tag">
+            <span style="color: #ff3366;">🔴</span>
+            <span class="name" style="color: #ff3366;">Conflict</span>
+          </div>
+          <div class="ghost-tag">
+            <span style="color: #ff77aa;">🌸</span>
+            <span class="name" style="color: #ff77aa;">NullPtr</span>
+          </div>
+          <div class="ghost-tag">
+            <span style="color: #00f0ff;">💠</span>
+            <span class="name" style="color: #00f0ff;">MemLeak</span>
+          </div>
+          <div class="ghost-tag">
+            <span style="color: #ff9900;">⚡</span>
+            <span class="name" style="color: #ff9900;">ProdBug</span>
+          </div>
+        </div>
+
+        <button class="btn-arcade" id="startBtn">START GAME</button>
+      </div>
+
+      <!-- Game Over / Victory Overlay -->
+      <div class="game-overlay hidden" id="gameOverOverlay">
+        <h2 class="overlay-title" id="endTitle">GAME OVER</h2>
+        <p class="overlay-subtitle" id="endSubtitle">Your commits were consumed by production bugs.</p>
+        <button class="btn-arcade" id="restartBtn">TRY AGAIN</button>
+      </div>
+    </div>
+
+    <!-- Mobile Virtual D-Pad -->
+    <div class="d-pad-container">
+      <button class="d-btn d-up" data-dir="up">▲</button>
+      <button class="d-btn d-left" data-dir="left">◀</button>
+      <button class="d-btn d-right" data-dir="right">▶</button>
+      <button class="d-btn d-down" data-dir="down">▼</button>
+    </div>
+
+    <!-- Footer & Controls -->
+    <footer class="arcade-footer">
+      <div class="controls-hint">
+        <span>Controls:</span>
+        <span class="key-badge">W A S D</span>
+        <span>or</span>
+        <span class="key-badge">Arrows</span>
+        <span>Lives:</span>
+        <span id="livesDisplay">🟡 🟡 🟡</span>
+      </div>
+      <div class="action-buttons">
+        <button class="btn-icon" id="pauseBtn">⏸️ Pause</button>
+        <button class="btn-icon" id="muteBtn">🔊 Sound</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
