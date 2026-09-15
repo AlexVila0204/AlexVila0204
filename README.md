@@ -48,6 +48,7 @@ I build mission-critical systems for the financial sector: payment terminals, el
 
 ## Activity
 
-<p align="center">
-  <img src="https://ghchart.rshah.org/409ba5/AlexVila0204" alt="Contribution graph" width="100%" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/output/snake-dark.svg" />
+  <img alt="Contribution snake" src="https://raw.githubusercontent.com/AlexVila0204/AlexVila0204/output/snake.svg" width="100%" />
+</picture>
