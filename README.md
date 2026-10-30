@@ -1,4 +1,4 @@
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0f2027,50:203a43,100:2c5364&height=180&section=header&text=AlexVila&fontSize=52&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Full%20Stack%20Developer%20%C2%B7%20Mobile%20%26%20Backend&descAlignY=60&descSize=18" width="100%" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0f2027,50:203a43,100:2c5364&height=180&section=header&text=AlexVila&fontSize=52&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Full%20Stack%20Developer%20%C2%B7%20Mobile%20and%20Backend&descAlignY=60&descSize=18" width="100%" />
 
 <p align="center">
   <a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=20&pause=1000&color=F7B733&center=true&vCenter=true&width=640&lines=Full+stack+developer;Kotlin+Multiplatform+%C2%B7+iOS+%C2%B7+Android;APIs+in+Go%2C+NestJS+and+Django;Minecraft+plugins+%C2%B7+Paper+%2F+Spigot+%2F+Velocity" alt="Typing SVG" /></a>
